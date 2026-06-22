@@ -1,0 +1,58 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Admin {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String
+}
+
+model Salesman {
+  id           Int         @id @default(autoincrement())
+  name         String
+  companyName  String
+  phone        String      // Salesman's WhatsApp number
+  username     String      @unique
+  passwordHash String
+  active       Boolean     @default(true)
+  stockItems   StockItem[]
+  orders       Order[]
+}
+
+model Retailer {
+  id       Int     @id @default(autoincrement())
+  shopName String
+  phone    String  @unique
+  token    String  @unique // Secure unique token for silent login URL
+  active   Boolean @default(true)
+  orders   Order[]
+}
+
+model StockItem {
+  id         Int      @id @default(autoincrement())
+  name       String
+  price      Float
+  quantity   Int
+  salesmanId Int
+  salesman   Salesman @relation(fields: [salesmanId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id          Int      @id @default(autoincrement())
+  retailerId  Int
+  retailer    Retailer @relation(fields: [retailerId], references: [id], onDelete: Cascade)
+  salesmanId  Int
+  salesman    Salesman @relation(fields: [salesmanId], references: [id], onDelete: Cascade)
+  productName String   // Name of product at time of order
+  quantity    Int
+  price       Float    // Price of product at time of order
+  status      String   @default("PENDING") // PENDING or FULFILLED
+  createdAt   DateTime @default(now())
+}

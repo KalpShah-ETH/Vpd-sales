@@ -27,6 +27,7 @@ export default function SalesmanDashboardClient({ salesman }) {
 
   // Preview tab state
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   useEffect(() => {
     fetchStock();
@@ -84,7 +85,8 @@ export default function SalesmanDashboardClient({ salesman }) {
   const handleLogout = async () => {
     try {
       await fetch('/api/salesman/login', { method: 'DELETE' });
-      router.push('/salesman/login');
+      setShowLogoutModal(false);
+      router.push('/?role=salesman');
     } catch (err) {
       console.error(err);
     }
@@ -231,7 +233,7 @@ export default function SalesmanDashboardClient({ salesman }) {
             </button>
           </li>
           <li style={{ marginTop: 'auto' }}>
-            <button className="sidebar-link" onClick={handleLogout} style={{ color: 'var(--danger)' }}>
+            <button className="sidebar-link" onClick={() => setShowLogoutModal(true)} style={{ color: 'var(--danger)' }}>
               🚪 Log Out
             </button>
           </li>
@@ -539,6 +541,37 @@ export default function SalesmanDashboardClient({ salesman }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Logout Confirmation */}
+      {showLogoutModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '380px', textAlign: 'center', padding: '32px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚪</div>
+            <h2 className="modal-title" style={{ marginBottom: '12px' }}>Confirm Logout</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginBottom: '24px', lineHeight: '1.5' }}>
+              Are you sure you want to log out of your Salesman session?
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                style={{ flex: 1, minHeight: '44px', height: '44px' }} 
+                onClick={() => setShowLogoutModal(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-danger" 
+                style={{ flex: 1, minHeight: '44px', height: '44px' }} 
+                onClick={handleLogout}
+              >
+                Okay
+              </button>
+            </div>
           </div>
         </div>
       )}

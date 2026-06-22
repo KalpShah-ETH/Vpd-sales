@@ -8,22 +8,16 @@ async function main() {
   const adminPassword = 'admin123';
   const passwordHash = await bcrypt.hash(adminPassword, 10);
 
-  // Check if admin already exists
-  const existingAdmin = await prisma.admin.findUnique({
+  // Create or update admin to ensure default credentials work
+  await prisma.admin.upsert({
     where: { username: adminUsername },
+    update: { passwordHash: passwordHash },
+    create: {
+      username: adminUsername,
+      passwordHash: passwordHash,
+    },
   });
-
-  if (!existingAdmin) {
-    await prisma.admin.create({
-      data: {
-        username: adminUsername,
-        passwordHash: passwordHash,
-      },
-    });
-    console.log(`Default admin created: username: '${adminUsername}', password: '${adminPassword}'`);
-  } else {
-    console.log('Admin already exists.');
-  }
+  console.log(`Default admin configured/updated: username: '${adminUsername}', password: '${adminPassword}'`);
 }
 
 main()

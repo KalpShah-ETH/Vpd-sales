@@ -45,18 +45,19 @@ export async function POST(request) {
   }
 
   try {
-    const { name, companyName, phone, username, password } = await request.json();
+    const { name, companyName, phone, password } = await request.json();
+    const username = phone;
 
-    if (!name || !companyName || !phone || !username || !password) {
+    if (!name || !companyName || !phone || !password) {
       return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
     }
 
-    // Check if username already exists
+    // Check if phone/username already exists
     const existing = await prisma.salesman.findUnique({
       where: { username },
     });
     if (existing) {
-      return NextResponse.json({ error: 'Username already exists' }, { status: 400 });
+      return NextResponse.json({ error: 'Salesman with this phone number already registered' }, { status: 400 });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -95,13 +96,14 @@ export async function PUT(request) {
   }
 
   try {
-    const { id, name, companyName, phone, username, password, active } = await request.json();
+    const { id, name, companyName, phone, password, active } = await request.json();
+    const username = phone;
 
     if (!id) {
       return NextResponse.json({ error: 'Salesman ID is required' }, { status: 400 });
     }
 
-    // Check username uniqueness if changing username
+    // Check username uniqueness if changing phone number
     if (username) {
       const existing = await prisma.salesman.findFirst({
         where: {
@@ -110,15 +112,17 @@ export async function PUT(request) {
         }
       });
       if (existing) {
-        return NextResponse.json({ error: 'Username already taken' }, { status: 400 });
+        return NextResponse.json({ error: 'Salesman with this phone number already registered' }, { status: 400 });
       }
     }
 
     const updateData = {};
     if (name) updateData.name = name;
     if (companyName) updateData.companyName = companyName;
-    if (phone) updateData.phone = phone;
-    if (username) updateData.username = username;
+    if (phone) {
+      updateData.phone = phone;
+      updateData.username = phone;
+    }
     if (active !== undefined) updateData.active = active;
     
     if (password && password.trim() !== '') {

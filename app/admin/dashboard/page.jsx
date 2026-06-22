@@ -8,7 +8,7 @@ export default async function AdminDashboardPage() {
   const admin = validateSession(cookieStore, 'admin_session', 'admin');
   
   if (!admin) {
-    redirect('/admin/login');
+    redirect('/?role=admin');
   }
 
   return <AdminDashboardClient />;

@@ -20,7 +20,7 @@ export async function POST(request) {
 
     if (!salesman) {
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: 'Wrong username or password' },
         { status: 401 }
       );
     }
@@ -35,7 +35,7 @@ export async function POST(request) {
     const isMatch = await bcrypt.compare(password, salesman.passwordHash);
     if (!isMatch) {
       return NextResponse.json(
-        { error: 'Invalid credentials' },
+        { error: 'Wrong username or password' },
         { status: 401 }
       );
     }

@@ -8,7 +8,7 @@ export default async function SalesmanDashboardPage() {
   const salesman = validateSession(cookieStore, 'salesman_session', 'salesman');
 
   if (!salesman) {
-    redirect('/salesman/login');
+    redirect('/?role=salesman');
   }
 
   return <SalesmanDashboardClient salesman={salesman} />;

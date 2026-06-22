@@ -40,6 +40,8 @@ export default function AdminDashboardClient() {
 
   const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
   const [bulkCsvText, setBulkCsvText] = useState('');
+  const [showSalesmanPassword, setShowSalesmanPassword] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Host URL for links
   const [hostUrl, setHostUrl] = useState('');
@@ -113,7 +115,8 @@ export default function AdminDashboardClient() {
   const handleLogout = async () => {
     try {
       await fetch('/api/admin/login', { method: 'DELETE' });
-      router.push('/admin/login');
+      setShowLogoutModal(false);
+      router.push('/?role=admin');
     } catch (err) {
       console.error('Logout error:', err);
     }
@@ -127,9 +130,15 @@ export default function AdminDashboardClient() {
       const isEditing = !!editingSalesman;
       const url = '/api/admin/salesman';
       const method = isEditing ? 'PUT' : 'POST';
+
+      const cleanPhone = salesmanForm.phone.replace(/\D/g, '');
+      if (cleanPhone.length !== 10) {
+        throw new Error('Salesman phone number must be exactly 10 digits');
+      }
+      
       const payload = isEditing 
-        ? { id: editingSalesman.id, ...salesmanForm }
-        : salesmanForm;
+        ? { id: editingSalesman.id, ...salesmanForm, username: salesmanForm.phone }
+        : { ...salesmanForm, username: salesmanForm.phone };
 
       const res = await fetch(url, {
         method,
@@ -174,6 +183,7 @@ export default function AdminDashboardClient() {
       password: '',
       active: true
     });
+    setShowSalesmanPassword(false);
     setIsSalesmanModalOpen(true);
   };
 
@@ -188,6 +198,7 @@ export default function AdminDashboardClient() {
       password: '', // Leave blank to keep existing
       active: salesman.active
     });
+    setShowSalesmanPassword(false);
     setIsSalesmanModalOpen(true);
   };
 
@@ -368,7 +379,7 @@ export default function AdminDashboardClient() {
             </button>
           </li>
           <li style={{ marginTop: 'auto' }}>
-            <button className="sidebar-link" onClick={handleLogout} style={{ color: 'var(--danger)' }}>
+            <button className="sidebar-link" onClick={() => setShowLogoutModal(true)} style={{ color: 'var(--danger)' }}>
               🚪 Log Out
             </button>
           </li>
@@ -700,29 +711,48 @@ export default function AdminDashboardClient() {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Username (Dashboard Login)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  required
-                  value={salesmanForm.username}
-                  onChange={(e) => setSalesmanForm({ ...salesmanForm, username: e.target.value })}
-                  placeholder="e.g. ramesh_xyz"
-                />
-              </div>
-
-              <div className="form-group">
                 <label className="form-label">
                   Password {editingSalesman && '(Leave blank to keep current)'}
                 </label>
-                <input
-                  type="password"
-                  className="form-input"
-                  required={!editingSalesman}
-                  value={salesmanForm.password}
-                  onChange={(e) => setSalesmanForm({ ...salesmanForm, password: e.target.value })}
-                  placeholder="Enter login password"
-                />
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <input
+                    type={showSalesmanPassword ? 'text' : 'password'}
+                    className="form-input"
+                    style={{ width: '100%', paddingRight: '48px' }}
+                    required={!editingSalesman}
+                    value={salesmanForm.password}
+                    onChange={(e) => setSalesmanForm({ ...salesmanForm, password: e.target.value })}
+                    placeholder="Enter login password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowSalesmanPassword(!showSalesmanPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '4px',
+                      color: 'var(--text-muted)'
+                    }}
+                  >
+                    {showSalesmanPassword ? (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                      </svg>
+                    ) : (
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                    )}
+                  </button>
+                </div>
               </div>
 
               {editingSalesman && (
@@ -836,6 +866,37 @@ export default function AdminDashboardClient() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Logout Confirmation */}
+      {showLogoutModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '380px', textAlign: 'center', padding: '32px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚪</div>
+            <h2 className="modal-title" style={{ marginBottom: '12px' }}>Confirm Logout</h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginBottom: '24px', lineHeight: '1.5' }}>
+              Are you sure you want to log out of your Admin session?
+            </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                style={{ flex: 1, minHeight: '44px', height: '44px' }} 
+                onClick={() => setShowLogoutModal(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-danger" 
+                style={{ flex: 1, minHeight: '44px', height: '44px' }} 
+                onClick={handleLogout}
+              >
+                Okay
+              </button>
+            </div>
           </div>
         </div>
       )}

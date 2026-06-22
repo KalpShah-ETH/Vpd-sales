@@ -42,6 +42,7 @@ export default function AdminDashboardClient() {
   const [bulkCsvText, setBulkCsvText] = useState('');
   const [showSalesmanPassword, setShowSalesmanPassword] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Host URL for links
   const [hostUrl, setHostUrl] = useState('');
@@ -348,16 +349,38 @@ export default function AdminDashboardClient() {
 
   return (
     <div className="dashboard-grid">
+      {/* Sidebar Backdrop for Mobile */}
+      {isSidebarOpen && <div className="sidebar-backdrop" onClick={() => setIsSidebarOpen(false)} />}
+
       {/* Sidebar Navigation */}
-      <aside className="sidebar">
-        <div className="sidebar-title">
-          <span>🛡️</span> VPD Admin
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <div className="sidebar-title">
+            <span>🛡️</span> VPD Admin
+          </div>
+          <button 
+            className="sidebar-close-btn"
+            onClick={() => setIsSidebarOpen(false)}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '28px',
+              cursor: 'pointer',
+              color: 'var(--text-muted)',
+              padding: '4px'
+            }}
+          >
+            ×
+          </button>
         </div>
         <ul className="sidebar-menu">
           <li>
             <button 
               className={`sidebar-link ${activeTab === 'salesmen' ? 'active' : ''}`}
-              onClick={() => setActiveTab('salesmen')}
+              onClick={() => {
+                setActiveTab('salesmen');
+                setIsSidebarOpen(false);
+              }}
             >
               👤 Salesmen Catalogues
             </button>
@@ -365,7 +388,10 @@ export default function AdminDashboardClient() {
           <li>
             <button 
               className={`sidebar-link ${activeTab === 'retailers' ? 'active' : ''}`}
-              onClick={() => setActiveTab('retailers')}
+              onClick={() => {
+                setActiveTab('retailers');
+                setIsSidebarOpen(false);
+              }}
             >
               🏪 Retailer Access Links
             </button>
@@ -373,13 +399,23 @@ export default function AdminDashboardClient() {
           <li>
             <button 
               className={`sidebar-link ${activeTab === 'orders' ? 'active' : ''}`}
-              onClick={() => setActiveTab('orders')}
+              onClick={() => {
+                setActiveTab('orders');
+                setIsSidebarOpen(false);
+              }}
             >
               📊 System Orders Feed
             </button>
           </li>
           <li style={{ marginTop: 'auto' }}>
-            <button className="sidebar-link" onClick={() => setShowLogoutModal(true)} style={{ color: 'var(--danger)' }}>
+            <button 
+              className="sidebar-link" 
+              onClick={() => {
+                setShowLogoutModal(true);
+                setIsSidebarOpen(false);
+              }} 
+              style={{ color: 'var(--danger)' }}
+            >
               🚪 Log Out
             </button>
           </li>
@@ -388,6 +424,12 @@ export default function AdminDashboardClient() {
 
       {/* Main Panel Content */}
       <main className="main-content">
+        <button 
+          className="menu-toggle-btn" 
+          onClick={() => setIsSidebarOpen(true)}
+        >
+          ☰
+        </button>
         
         {/* TAB 1: Salesmen Management */}
         {activeTab === 'salesmen' && (

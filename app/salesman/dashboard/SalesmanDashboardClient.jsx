@@ -28,6 +28,7 @@ export default function SalesmanDashboardClient({ salesman }) {
   // Preview tab state
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     fetchStock();
@@ -191,10 +192,29 @@ export default function SalesmanDashboardClient({ salesman }) {
 
   return (
     <div className="dashboard-grid">
+      {/* Sidebar Backdrop for Mobile */}
+      {isSidebarOpen && <div className="sidebar-backdrop" onClick={() => setIsSidebarOpen(false)} />}
+
       {/* Sidebar Navigation */}
-      <aside className="sidebar">
-        <div className="sidebar-title" style={{ fontSize: '18px' }}>
-          <span>📦</span> {salesman.companyName}
+      <aside className={`sidebar ${isSidebarOpen ? 'open' : ''}`}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <div className="sidebar-title" style={{ fontSize: '18px' }}>
+            <span>📦</span> {salesman.companyName}
+          </div>
+          <button 
+            className="sidebar-close-btn"
+            onClick={() => setIsSidebarOpen(false)}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '28px',
+              cursor: 'pointer',
+              color: 'var(--text-muted)',
+              padding: '4px'
+            }}
+          >
+            ×
+          </button>
         </div>
         <div style={{ padding: '0 16px', margin: '-16px 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
           Rep: {salesman.name}
@@ -203,7 +223,10 @@ export default function SalesmanDashboardClient({ salesman }) {
           <li>
             <button 
               className={`sidebar-link ${activeTab === 'stock' ? 'active' : ''}`}
-              onClick={() => setActiveTab('stock')}
+              onClick={() => {
+                setActiveTab('stock');
+                setIsSidebarOpen(false);
+              }}
             >
               📋 Stock Catalogue
             </button>
@@ -211,7 +234,10 @@ export default function SalesmanDashboardClient({ salesman }) {
           <li>
             <button 
               className={`sidebar-link ${activeTab === 'orders' ? 'active' : ''}`}
-              onClick={() => setActiveTab('orders')}
+              onClick={() => {
+                setActiveTab('orders');
+                setIsSidebarOpen(false);
+              }}
             >
               📥 Orders Received
               {orderStats.pending > 0 && (
@@ -227,13 +253,21 @@ export default function SalesmanDashboardClient({ salesman }) {
               onClick={() => {
                 setActiveTab('preview');
                 setSelectedCompanyId(null);
+                setIsSidebarOpen(false);
               }}
             >
               👀 Browse Catalogues
             </button>
           </li>
           <li style={{ marginTop: 'auto' }}>
-            <button className="sidebar-link" onClick={() => setShowLogoutModal(true)} style={{ color: 'var(--danger)' }}>
+            <button 
+              className="sidebar-link" 
+              onClick={() => {
+                setShowLogoutModal(true);
+                setIsSidebarOpen(false);
+              }} 
+              style={{ color: 'var(--danger)' }}
+            >
               🚪 Log Out
             </button>
           </li>
@@ -242,6 +276,12 @@ export default function SalesmanDashboardClient({ salesman }) {
 
       {/* Main Panel Content */}
       <main className="main-content">
+        <button 
+          className="menu-toggle-btn" 
+          onClick={() => setIsSidebarOpen(true)}
+        >
+          ☰
+        </button>
         
         {/* TAB 1: Stock Catalogue Management */}
         {activeTab === 'stock' && (

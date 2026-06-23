@@ -868,7 +868,7 @@ export default function AdminDashboardClient() {
                       <th>Retailer (Shop Name)</th>
                       <th>Pharma Company</th>
                       <th>Product Ordered</th>
-                      <th>Qty × Unit Price</th>
+                      <th>Qty × Price per Strip</th>
                       <th>Total Billing</th>
                       <th>Routing Status</th>
                       <th>Timestamp</th>
@@ -890,7 +890,7 @@ export default function AdminDashboardClient() {
                           </span>
                         </td>
                         <td>{order.productName}</td>
-                        <td>{order.quantity} units × ₹{order.price.toFixed(2)}</td>
+                        <td>{order.quantity} strips × ₹{order.price.toFixed(2)}</td>
                         <td style={{ fontWeight: '700', color: 'var(--primary)' }}>
                           ₹{(order.quantity * order.price).toFixed(2)}
                         </td>
@@ -970,7 +970,7 @@ export default function AdminDashboardClient() {
                           <div>
                             <div className="stock-title">{item.name}</div>
                             <div className="stock-qty">
-                              {item.quantity > 0 ? `Stock: ${item.quantity} units available` : 'Product Out of Stock'}
+                              {item.quantity > 0 ? `Stock: ${item.quantity} strips available` : 'Product Out of Stock'}
                             </div>
                           </div>
                           <div className="stock-price">₹{item.price.toFixed(2)}</div>

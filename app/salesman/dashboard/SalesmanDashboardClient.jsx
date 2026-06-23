@@ -390,7 +390,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                   <thead>
                     <tr>
                       <th>Product Name</th>
-                      <th>Unit Price</th>
+                      <th>Price per Strip</th>
                       <th>Stock Quantity</th>
                       <th>Status</th>
                       <th>Actions</th>
@@ -403,7 +403,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                           <div style={{ fontWeight: '600', fontSize: '16px' }}>{item.name}</div>
                         </td>
                         <td style={{ fontWeight: '600' }}>₹{item.price.toFixed(2)}</td>
-                        <td style={{ fontWeight: '600' }}>{item.quantity} units</td>
+                        <td style={{ fontWeight: '600' }}>{item.quantity} strips</td>
                         <td>
                           <span className={`badge ${item.quantity > 0 ? 'badge-success' : 'badge-warning'}`}>
                             {item.quantity > 0 ? 'In Stock' : 'Out of Stock'}
@@ -507,7 +507,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                           </div>
                         </td>
                         <td>{order.productName}</td>
-                        <td>{order.quantity} units</td>
+                        <td>{order.quantity} strips</td>
                         <td style={{ fontWeight: '700', color: 'var(--primary)' }}>
                           ₹{(order.quantity * order.price).toFixed(2)}
                         </td>
@@ -600,7 +600,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                           <div>
                             <div className="stock-title">{item.name}</div>
                             <div className="stock-qty">
-                              {item.quantity > 0 ? `Stock: ${item.quantity} units available` : 'Product Out of Stock'}
+                              {item.quantity > 0 ? `Stock: ${item.quantity} strips available` : 'Product Out of Stock'}
                             </div>
                           </div>
                           <div className="stock-price">₹{item.price.toFixed(2)}</div>
@@ -646,7 +646,7 @@ export default function SalesmanDashboardClient({ salesman }) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Unit Price (₹)</label>
+                <label className="form-label">Price per Strip (₹)</label>
                 <input
                   type="number"
                   step="0.01"
@@ -660,7 +660,7 @@ export default function SalesmanDashboardClient({ salesman }) {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Available Stock Quantity (Units)</label>
+                <label className="form-label">Available Stock Quantity (Strips)</label>
                 <input
                   type="number"
                   min="0"

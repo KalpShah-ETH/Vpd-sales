@@ -222,7 +222,7 @@ export default function RetailerBrowseClient({ shopName }) {
                         <div className="stock-qty" style={{ marginTop: '4px' }}>
                           {isOutOfStock 
                             ? '🚫 Out of Stock' 
-                            : `🟢 Available Stock: ${item.quantity} units`}
+                            : `🟢 Available Stock: ${item.quantity} strips`}
                         </div>
                       </div>
                       <div className="stock-price" style={{ fontSize: '20px' }}>
@@ -242,7 +242,50 @@ export default function RetailerBrowseClient({ shopName }) {
                           >
                             -
                           </button>
-                          <div className="qty-val">{qtySelected}</div>
+                          <input 
+                            type="number" 
+                            min="1"
+                            max={item.quantity}
+                            value={quantities[item.id] !== undefined ? quantities[item.id] : 1}
+                            onChange={(e) => {
+                              const valStr = e.target.value;
+                              if (valStr === '') {
+                                setQuantities({
+                                  ...quantities,
+                                  [item.id]: ''
+                                });
+                                return;
+                              }
+                              let val = parseInt(valStr);
+                              if (isNaN(val)) val = 1;
+                              if (val < 1) val = 1;
+                              if (val > item.quantity) val = item.quantity;
+                              setQuantities({
+                                ...quantities,
+                                [item.id]: val
+                              });
+                            }}
+                            onBlur={() => {
+                              const val = quantities[item.id];
+                              if (val === '' || isNaN(parseInt(val))) {
+                                setQuantities({
+                                  ...quantities,
+                                  [item.id]: 1
+                                });
+                              }
+                            }}
+                            style={{
+                              width: '60px',
+                              textAlign: 'center',
+                              fontSize: '16px',
+                              fontWeight: '600',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: 'var(--radius-sm)',
+                              padding: '4px 0',
+                              margin: '0 8px',
+                              height: '36px'
+                            }}
+                          />
                           <button 
                             type="button" 
                             className="qty-btn"
@@ -270,7 +313,7 @@ export default function RetailerBrowseClient({ shopName }) {
                           ? 'OUT OF STOCK (N/A)' 
                           : submittingItemId === item.id 
                             ? 'Processing Order...' 
-                            : `Order ${qtySelected} units via WhatsApp`}
+                            : `Order ${qtySelected || 1} strips via WhatsApp`}
                       </button>
                     </div>
                   </div>

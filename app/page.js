@@ -56,13 +56,7 @@ function LoginPageContent() {
         throw new Error(data.error || 'Login failed');
       }
 
-      if (role === 'admin') {
-        setSuccess('Logged in successfully as Admin! Redirecting...');
-      }
-
-      setTimeout(() => {
-        router.push(redirectDashboard);
-      }, role === 'admin' ? 1000 : 0);
+      router.push(redirectDashboard);
     } catch (err) {
       setError(err.message);
       setLoading(false);
@@ -79,7 +73,7 @@ function LoginPageContent() {
       justifyContent: 'center',
       minHeight: '100vh',
       padding: '24px',
-      background: 'linear-gradient(135deg, var(--bg-primary) 0%, var(--border-color) 100%)'
+      background: 'var(--bg-primary)'
     }}>
       <div className="modal-content" style={{ maxWidth: '440px', padding: '32px' }}>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
@@ -102,12 +96,14 @@ function LoginPageContent() {
         }}>
           <button
             type="button"
+            className="btn"
             onClick={() => {
               setRole('salesman');
               setError('');
             }}
             style={{
               flex: 1,
+              minHeight: '48px',
               padding: '10px 12px',
               border: 'none',
               borderRadius: 'var(--radius-sm)',
@@ -128,12 +124,14 @@ function LoginPageContent() {
           </button>
           <button
             type="button"
+            className="btn"
             onClick={() => {
               setRole('admin');
               setError('');
             }}
             style={{
               flex: 1,
+              minHeight: '48px',
               padding: '10px 12px',
               border: 'none',
               borderRadius: 'var(--radius-sm)',

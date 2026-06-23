@@ -45,7 +45,39 @@ export async function POST(request) {
   }
 
   try {
-    const { name, companyName, phone, password } = await request.json();
+    const body = await request.json();
+
+    // Support Bulk Upload for Salesmen
+    if (Array.isArray(body.salesmen)) {
+      let count = 0;
+      for (const s of body.salesmen) {
+        const { name, companyName, phone, password } = s;
+        if (!name || !companyName || !phone || !password) continue;
+        const username = phone;
+
+        // Skip existing
+        const existing = await prisma.salesman.findUnique({
+          where: { username },
+        });
+        if (existing) continue;
+
+        const passwordHash = await bcrypt.hash(password, 10);
+        await prisma.salesman.create({
+          data: {
+            name,
+            companyName,
+            phone,
+            username,
+            passwordHash,
+            active: true
+          }
+        });
+        count++;
+      }
+      return NextResponse.json({ success: true, count });
+    }
+
+    const { name, companyName, phone, password } = body;
     const username = phone;
 
     if (!name || !companyName || !phone || !password) {

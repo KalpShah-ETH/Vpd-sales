@@ -54,9 +54,14 @@ export async function PUT(request) {
       return NextResponse.json({ error: 'Forbidden or order not found' }, { status: 403 });
     }
 
+    const upperStatus = status.toUpperCase();
+    if (upperStatus !== 'PENDING' && upperStatus !== 'FULFILLED') {
+      return NextResponse.json({ error: 'Invalid status value. Must be PENDING or FULFILLED' }, { status: 400 });
+    }
+
     const order = await prisma.order.update({
       where: { id: parseInt(id) },
-      data: { status: status.toUpperCase() } // "PENDING" or "FULFILLED"
+      data: { status: upperStatus }
     });
 
     return NextResponse.json({ success: true, order });

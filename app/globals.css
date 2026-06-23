@@ -204,6 +204,15 @@ body {
   background-color: var(--danger-hover);
 }
 
+.btn-success {
+  background-color: var(--success);
+  color: #ffffff;
+}
+
+.btn-success:hover:not(:disabled) {
+  background-color: #059669;
+}
+
 .btn-secondary {
   background-color: transparent;
   color: var(--text-main);
@@ -285,6 +294,7 @@ body {
 .stock-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
+  border-left: none;
   border-radius: var(--radius-md);
   padding: 16px;
   margin-bottom: 12px;
@@ -340,6 +350,7 @@ body {
 .qty-btn {
   width: 48px;
   height: 100%;
+  min-height: 48px;
   background: var(--bg-primary);
   border: none;
   font-size: 20px;
@@ -365,7 +376,7 @@ body {
 /* Dashboards Grid (Admin / Salesman) */
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 1fr;
   min-height: 100vh;
 }
 
@@ -494,6 +505,12 @@ body {
   color: var(--success);
 }
 
+.badge-neutral {
+  background-color: var(--bg-primary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
 /* Cards Grid for Dashboard overview */
 .stats-grid {
   display: grid;
@@ -586,10 +603,14 @@ body {
 /* Toast Notification */
 .toast {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  background-color: #1e293b;
-  color: #ffffff;
+  bottom: 16px;
+  left: 16px;
+  right: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+  justify-content: center;
+  background-color: var(--text-main);
+  color: var(--bg-card);
   padding: 12px 20px;
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-lg);
@@ -598,6 +619,11 @@ body {
   gap: 10px;
   z-index: 2000;
   animation: toastFade 0.3s ease-out;
+}
+
+.toast.toast-error {
+  background-color: var(--danger);
+  color: #ffffff;
 }
 
 @keyframes toastFade {
@@ -644,9 +670,6 @@ body {
 }
 
 /* Sidebar Drawer for both Desktop & Mobile */
-.dashboard-grid {
-  grid-template-columns: 1fr !important;
-}
 
 .sidebar {
   position: fixed;

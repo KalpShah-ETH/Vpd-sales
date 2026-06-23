@@ -27,42 +27,57 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Retailer account is deactivated' }, { status: 403 });
     }
 
-    // Retrieve stock item with salesman details
-    const stockItem = await prisma.stockItem.findUnique({
-      where: { id: parseInt(stockItemId) },
-      include: {
-        salesman: true
+    // Retrieve and update within transaction to prevent race conditions
+    const transactionResult = await prisma.$transaction(async (tx) => {
+      // Retrieve stock item with salesman details
+      const stockItem = await tx.stockItem.findUnique({
+        where: { id: parseInt(stockItemId) },
+        include: {
+          salesman: true
+        }
+      });
+
+      if (!stockItem || !stockItem.salesman || !stockItem.salesman.active) {
+        throw { status: 404, error: 'Product or company is currently unavailable' };
       }
-    });
 
-    if (!stockItem || !stockItem.salesman || !stockItem.salesman.active) {
-      return NextResponse.json({ error: 'Product or company is currently unavailable' }, { status: 404 });
-    }
-
-    if (stockItem.quantity <= 0) {
-      return NextResponse.json({ error: 'Product is out of stock' }, { status: 400 });
-    }
-
-    const orderQty = Math.min(quantity, stockItem.quantity);
-
-    // Save order in database
-    const order = await prisma.order.create({
-      data: {
-        retailerId: dbRetailer.id,
-        salesmanId: stockItem.salesman.id,
-        productName: stockItem.name,
-        quantity: orderQty,
-        price: stockItem.price,
-        status: 'PENDING'
+      if (stockItem.quantity <= 0) {
+        throw { status: 400, error: 'Product is out of stock' };
       }
+
+      const orderQty = Math.min(quantity, stockItem.quantity);
+
+      // Update stock item quantity in DB (decrement)
+      const updatedStockItem = await tx.stockItem.update({
+        where: { id: stockItem.id },
+        data: {
+          quantity: {
+            decrement: orderQty
+          }
+        }
+      });
+
+      // If quantity drops below 0, it means another concurrent request got it first
+      if (updatedStockItem.quantity < 0) {
+        throw { status: 400, error: 'Product is out of stock' };
+      }
+
+      // Save order in database
+      const order = await tx.order.create({
+        data: {
+          retailerId: dbRetailer.id,
+          salesmanId: stockItem.salesman.id,
+          productName: stockItem.name,
+          quantity: orderQty,
+          price: stockItem.price,
+          status: 'PENDING'
+        }
+      });
+
+      return { order, orderQty, stockItem };
     });
 
-    // Update stock item quantity in DB (cap at 0)
-    const newQty = Math.max(0, stockItem.quantity - orderQty);
-    await prisma.stockItem.update({
-      where: { id: stockItem.id },
-      data: { quantity: newQty }
-    });
+    const { order, orderQty, stockItem } = transactionResult;
 
     // Normalize salesman's phone number for WhatsApp
     // Needs to be in format 91XXXXXXXXXX (e.g. without spaces, dashes, +, and prepend 91 for India if only 10 digits)
@@ -83,6 +98,9 @@ export async function POST(request) {
       waUrl
     });
   } catch (error) {
+    if (error.status && error.error) {
+      return NextResponse.json({ error: error.error }, { status: error.status });
+    }
     console.error('Order placement error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

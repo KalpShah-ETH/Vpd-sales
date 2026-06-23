@@ -10,16 +10,23 @@ export default function RetailerBrowseClient({ shopName }) {
   // Track quantities selected for each item (default 1)
   const [quantities, setQuantities] = useState({});
   const [submittingItemId, setSubmittingItemId] = useState(null);
-  const [toast, setToast] = useState({ visible: false, message: '' });
+  const [toast, setToast] = useState({ visible: false, message: '', isError: false });
 
   useEffect(() => {
     fetchCatalog();
   }, []);
 
   const showToast = (message) => {
-    setToast({ visible: true, message });
+    setToast({ visible: true, message, isError: false });
     setTimeout(() => {
-      setToast({ visible: false, message: '' });
+      setToast({ visible: false, message: '', isError: false });
+    }, 4000);
+  };
+
+  const showErrorToast = (message) => {
+    setToast({ visible: true, message, isError: true });
+    setTimeout(() => {
+      setToast({ visible: false, message: '', isError: false });
     }, 4000);
   };
 
@@ -101,7 +108,7 @@ export default function RetailerBrowseClient({ shopName }) {
       // Immediate handoff to WhatsApp
       window.location.href = data.waUrl;
     } catch (err) {
-      alert(err.message);
+      showErrorToast(err.message);
     } finally {
       setSubmittingItemId(null);
     }
@@ -263,7 +270,7 @@ export default function RetailerBrowseClient({ shopName }) {
                           ? 'OUT OF STOCK (N/A)' 
                           : submittingItemId === item.id 
                             ? 'Processing Order...' 
-                            : `ORDER ${qtySelected} UNITS (WhatsApp)`}
+                            : `Order ${qtySelected} units via WhatsApp`}
                       </button>
                     </div>
                   </div>
@@ -276,8 +283,8 @@ export default function RetailerBrowseClient({ shopName }) {
 
       {/* TOAST POPUP NOTIFICATION */}
       {toast.visible && (
-        <div className="toast" style={{ bottom: '16px', right: '16px', left: '16px', justifyContent: 'center' }}>
-          {toast.message}
+        <div className={`toast ${toast.isError ? 'toast-error' : ''}`}>
+          <span>{toast.isError ? '✕' : '🔔'}</span> {toast.message}
         </div>
       )}
     </div>

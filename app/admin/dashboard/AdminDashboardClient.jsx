@@ -12,12 +12,38 @@ export default function AdminDashboardClient() {
   const [retailers, setRetailers] = useState([]);
   const [orders, setOrders] = useState([]);
   const [stats, setStats] = useState({ totalOrders: 0, pendingOrders: 0, fulfilledOrders: 0 });
+  const [catalog, setCatalog] = useState([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
 
   // UI state
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ visible: false, message: '' });
+  const [toast, setToast] = useState({ visible: false, message: '', isError: false });
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Custom Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    isDanger: false,
+    confirmText: 'Confirm'
+  });
+
+  const triggerConfirm = (title, message, onConfirm, isDanger = false, confirmText = 'Confirm') => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      },
+      isDanger,
+      confirmText
+    });
+  };
+
   // Modals state
   const [isSalesmanModalOpen, setIsSalesmanModalOpen] = useState(false);
   const [editingSalesman, setEditingSalesman] = useState(null); // null means adding new
@@ -40,6 +66,8 @@ export default function AdminDashboardClient() {
 
   const [isBulkUploadModalOpen, setIsBulkUploadModalOpen] = useState(false);
   const [bulkCsvText, setBulkCsvText] = useState('');
+  const [isSalesmanBulkUploadModalOpen, setIsSalesmanBulkUploadModalOpen] = useState(false);
+  const [salesmanBulkCsvText, setSalesmanBulkCsvText] = useState('');
   const [showSalesmanPassword, setShowSalesmanPassword] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -54,13 +82,21 @@ export default function AdminDashboardClient() {
     fetchSalesmen();
     fetchRetailers();
     fetchOrders();
+    fetchCatalog();
   }, []);
 
   // Show toast notification
   const showToast = (message) => {
-    setToast({ visible: true, message });
+    setToast({ visible: true, message, isError: false });
     setTimeout(() => {
-      setToast({ visible: false, message: '' });
+      setToast({ visible: false, message: '', isError: false });
+    }, 3000);
+  };
+
+  const showErrorToast = (message) => {
+    setToast({ visible: true, message, isError: true });
+    setTimeout(() => {
+      setToast({ visible: false, message: '', isError: false });
     }, 3000);
   };
 
@@ -74,6 +110,7 @@ export default function AdminDashboardClient() {
       }
     } catch (err) {
       console.error(err);
+      showErrorToast('Failed to load data. Please refresh.');
     }
   };
 
@@ -87,6 +124,7 @@ export default function AdminDashboardClient() {
       }
     } catch (err) {
       console.error(err);
+      showErrorToast('Failed to load data. Please refresh.');
     }
   };
 
@@ -109,6 +147,21 @@ export default function AdminDashboardClient() {
       }
     } catch (err) {
       console.error(err);
+      showErrorToast('Failed to load data. Please refresh.');
+    }
+  };
+
+  // API Call: Fetch Catalog (Retailer View Preview)
+  const fetchCatalog = async () => {
+    try {
+      const res = await fetch('/api/retailer/browse');
+      if (res.ok) {
+        const data = await res.json();
+        setCatalog(data);
+      }
+    } catch (err) {
+      console.error(err);
+      showErrorToast('Failed to load data. Please refresh.');
     }
   };
 
@@ -120,6 +173,7 @@ export default function AdminDashboardClient() {
       router.push('/?role=admin');
     } catch (err) {
       console.error('Logout error:', err);
+      showErrorToast('Logout failed');
     }
   };
 
@@ -153,24 +207,33 @@ export default function AdminDashboardClient() {
       showToast(isEditing ? 'Salesman updated successfully!' : 'Salesman created successfully!');
       setIsSalesmanModalOpen(false);
       fetchSalesmen();
+      fetchCatalog();
     } catch (err) {
-      alert(err.message);
+      showErrorToast(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   // Delete Salesman
-  const handleDeleteSalesman = async (id) => {
-    if (!confirm('Are you sure you want to delete this salesman? All their products and orders will also be permanently deleted.')) return;
-    try {
-      const res = await fetch(`/api/admin/salesman?id=${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete');
-      showToast('Salesman deleted successfully');
-      fetchSalesmen();
-    } catch (err) {
-      alert(err.message);
-    }
+  const handleDeleteSalesman = (id) => {
+    triggerConfirm(
+      'Delete Salesman',
+      'Are you sure you want to delete this salesman? All their products and orders will also be permanently deleted.',
+      async () => {
+        try {
+          const res = await fetch(`/api/admin/salesman?id=${id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Failed to delete');
+          showToast('Salesman deleted successfully');
+          fetchSalesmen();
+          fetchCatalog();
+        } catch (err) {
+          showErrorToast(err.message);
+        }
+      },
+      true,
+      'Delete'
+    );
   };
 
   // Open Salesman Modal for Create
@@ -228,7 +291,7 @@ export default function AdminDashboardClient() {
       setIsRetailerModalOpen(false);
       fetchRetailers();
     } catch (err) {
-      alert(err.message);
+      showErrorToast(err.message);
     } finally {
       setLoading(false);
     }
@@ -246,38 +309,52 @@ export default function AdminDashboardClient() {
       showToast(`Retailer ${!retailer.active ? 'activated' : 'deactivated'} successfully!`);
       fetchRetailers();
     } catch (err) {
-      alert(err.message);
+      showErrorToast(err.message);
     }
   };
 
   // Regenerate Retailer Link/Token
-  const regenerateRetailerLink = async (id) => {
-    if (!confirm('This will invalidate their existing private link. Regenerate link now?')) return;
-    try {
-      const res = await fetch('/api/admin/retailer', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, regenerateToken: true })
-      });
-      if (!res.ok) throw new Error('Failed to regenerate link');
-      showToast('New link generated successfully!');
-      fetchRetailers();
-    } catch (err) {
-      alert(err.message);
-    }
+  const regenerateRetailerLink = (id) => {
+    triggerConfirm(
+      'Regenerate Access Link',
+      'This will invalidate their existing private link. Regenerate link now? Note: Retailers using the old link will immediately lose access.',
+      async () => {
+        try {
+          const res = await fetch('/api/admin/retailer', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, regenerateToken: true })
+          });
+          if (!res.ok) throw new Error('Failed to regenerate link');
+          showToast('New link generated successfully!');
+          fetchRetailers();
+        } catch (err) {
+          showErrorToast(err.message);
+        }
+      },
+      true,
+      'Regenerate'
+    );
   };
 
   // Delete Retailer
-  const handleDeleteRetailer = async (id) => {
-    if (!confirm('Are you sure you want to delete this retailer? All their orders will be deleted.')) return;
-    try {
-      const res = await fetch(`/api/admin/retailer?id=${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete');
-      showToast('Retailer deleted successfully');
-      fetchRetailers();
-    } catch (err) {
-      alert(err.message);
-    }
+  const handleDeleteRetailer = (id) => {
+    triggerConfirm(
+      'Delete Retailer',
+      'Are you sure you want to delete this retailer? All their orders will be deleted permanently.',
+      async () => {
+        try {
+          const res = await fetch(`/api/admin/retailer?id=${id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Failed to delete');
+          showToast('Retailer deleted successfully');
+          fetchRetailers();
+        } catch (err) {
+          showErrorToast(err.message);
+        }
+      },
+      true,
+      'Delete'
+    );
   };
 
   // Bulk Upload Action
@@ -324,13 +401,61 @@ export default function AdminDashboardClient() {
       setBulkCsvText('');
       fetchRetailers();
     } catch (err) {
-      alert(err.message);
+      showErrorToast(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Copy private link to clipboard
+  const handleSalesmanBulkUpload = async (e) => {
+    e.preventDefault();
+    if (!salesmanBulkCsvText.trim()) return;
+    setLoading(true);
+
+    try {
+      const lines = salesmanBulkCsvText.split('\n');
+      const parsedSalesmen = [];
+
+      for (let line of lines) {
+        line = line.trim();
+        if (!line) continue;
+
+        const parts = line.split(',');
+        if (parts.length >= 4) {
+          const name = parts[0].trim();
+          const companyName = parts[1].trim();
+          const phone = parts[2].trim();
+          const password = parts[3].trim();
+          if (name && companyName && phone && password && name !== 'Name') {
+            parsedSalesmen.push({ name, companyName, phone, password });
+          }
+        }
+      }
+
+      if (parsedSalesmen.length === 0) {
+        throw new Error('No valid salesman rows found. Format must be: Name, Company, Phone, Password');
+      }
+
+      const res = await fetch('/api/admin/salesman', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ salesmen: parsedSalesmen })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Bulk upload failed');
+
+      showToast(`Successfully uploaded ${data.count} salesmen!`);
+      setIsSalesmanBulkUploadModalOpen(false);
+      setSalesmanBulkCsvText('');
+      fetchSalesmen();
+      fetchCatalog();
+    } catch (err) {
+      showErrorToast(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
   const handleCopyLink = (token) => {
     const link = `${hostUrl}/r/${token}`;
     navigator.clipboard.writeText(link);
@@ -347,6 +472,11 @@ export default function AdminDashboardClient() {
     );
   }, [retailers, searchQuery]);
 
+  const selectedCompany = useMemo(() => {
+    if (!selectedCompanyId) return null;
+    return catalog.find(c => c.id === selectedCompanyId);
+  }, [catalog, selectedCompanyId]);
+
   return (
     <div className="dashboard-grid">
       {/* Sidebar Backdrop for Mobile */}
@@ -359,21 +489,16 @@ export default function AdminDashboardClient() {
             <span>🛡️</span> VPD Admin
           </div>
           <button 
-            className="sidebar-close-btn"
+            className="back-btn sidebar-close-btn"
             onClick={() => setIsSidebarOpen(false)}
             style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '28px',
-              cursor: 'pointer',
-              color: 'var(--text-muted)',
-              padding: '4px'
+              color: 'var(--text-muted)'
             }}
           >
             ×
           </button>
         </div>
-        <ul className="sidebar-menu">
+        <ul className="sidebar-menu" style={{ flex: 1 }}>
           <li>
             <button 
               className={`sidebar-link ${activeTab === 'salesmen' ? 'active' : ''}`}
@@ -405,6 +530,18 @@ export default function AdminDashboardClient() {
               }}
             >
               📊 System Orders Feed
+            </button>
+          </li>
+          <li>
+            <button 
+              className={`sidebar-link ${activeTab === 'preview' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('preview');
+                setSelectedCompanyId(null);
+                setIsSidebarOpen(false);
+              }}
+            >
+              👀 Retailer View Preview
             </button>
           </li>
           <li style={{ marginTop: 'auto' }}>
@@ -439,9 +576,30 @@ export default function AdminDashboardClient() {
                 <h1 className="dashboard-title">Salesmen Catalogues</h1>
                 <p style={{ color: 'var(--text-muted)' }}>Manage salesmen accounts and catalog ownership.</p>
               </div>
-              <button className="btn btn-primary" onClick={openAddSalesmanModal}>
-                ➕ Add New Salesman
-              </button>
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button className="btn btn-secondary" onClick={() => setIsSalesmanBulkUploadModalOpen(true)}>
+                  📥 Bulk Upload CSV
+                </button>
+                <button className="btn btn-primary" onClick={openAddSalesmanModal}>
+                  ➕ Add New Salesman
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Stats Grid */}
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-title">Total Salesmen registered</div>
+                <div className="stat-value" style={{ color: 'var(--primary)' }}>{salesmen.length}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-title">Active Salesmen</div>
+                <div className="stat-value" style={{ color: 'var(--success)' }}>{salesmen.filter(s => s.active).length}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-title">Deactivated Salesmen</div>
+                <div className="stat-value" style={{ color: 'var(--warning)' }}>{salesmen.filter(s => !s.active).length}</div>
+              </div>
             </div>
 
             <div className="table-container">
@@ -458,7 +616,7 @@ export default function AdminDashboardClient() {
                       <th>Salesman Details</th>
                       <th>Company Representing</th>
                       <th>WhatsApp Routing</th>
-                      <th>Dashboard Login</th>
+                      <th>Username (Phone)</th>
                       <th>Catalogue Stats</th>
                       <th>Status</th>
                       <th>Actions</th>
@@ -471,7 +629,7 @@ export default function AdminDashboardClient() {
                           <div style={{ fontWeight: '600' }}>{salesman.name}</div>
                         </td>
                         <td>
-                          <div className="badge badge-success" style={{ textTransform: 'uppercase' }}>
+                          <div className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
                             {salesman.companyName}
                           </div>
                         </td>
@@ -482,15 +640,36 @@ export default function AdminDashboardClient() {
                         </td>
                         <td>
                           <span className={`badge ${salesman.active ? 'badge-success' : 'badge-warning'}`}>
-                            {salesman.active ? 'Active' : 'Disabled'}
+                            {salesman.active ? 'Active' : 'Deactivated'}
                           </span>
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className="btn btn-secondary" style={{ minHeight: '36px', height: '36px', padding: '0 12px', fontSize: '14px' }} onClick={() => openEditSalesmanModal(salesman)}>
+                            <button 
+                              className={`btn ${salesman.active ? 'btn-secondary' : 'btn-primary'}`} 
+                              style={{ padding: '0 10px', fontSize: '14px' }}
+                              onClick={async () => {
+                                try {
+                                  const res = await fetch('/api/admin/salesman', {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ id: salesman.id, active: !salesman.active })
+                                  });
+                                  if (!res.ok) throw new Error('Failed to toggle active status');
+                                  showToast(`Salesman ${!salesman.active ? 'activated' : 'deactivated'} successfully!`);
+                                  fetchSalesmen();
+                                  fetchCatalog();
+                                } catch (err) {
+                                  showErrorToast(err.message);
+                                }
+                              }}
+                            >
+                              {salesman.active ? 'Disable' : 'Enable'}
+                            </button>
+                            <button className="btn btn-secondary" style={{ padding: '0 10px', fontSize: '14px' }} onClick={() => openEditSalesmanModal(salesman)}>
                               Edit
                             </button>
-                            <button className="btn btn-danger" style={{ minHeight: '36px', height: '36px', padding: '0 12px', fontSize: '14px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
+                            <button className="btn btn-danger" style={{ padding: '0 10px', fontSize: '14px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
                               Delete
                             </button>
                           </div>
@@ -526,12 +705,28 @@ export default function AdminDashboardClient() {
               </div>
             </div>
 
+            {/* Quick Stats Grid */}
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-title">Total Retailers</div>
+                <div className="stat-value" style={{ color: 'var(--primary)' }}>{retailers.length}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-title">Active Retailers</div>
+                <div className="stat-value" style={{ color: 'var(--success)' }}>{retailers.filter(r => r.active).length}</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-title">Deactivated Retailers</div>
+                <div className="stat-value" style={{ color: 'var(--warning)' }}>{retailers.filter(r => !r.active).length}</div>
+              </div>
+            </div>
+
             {/* Search filter */}
             <div style={{ marginBottom: '20px', display: 'flex', maxWidth: '400px' }}>
               <input
                 type="text"
                 className="form-input"
-                style={{ width: '100%', minHeight: '40px', height: '40px' }}
+                style={{ width: '100%' }}
                 placeholder="Search by shop name or phone..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -565,7 +760,7 @@ export default function AdminDashboardClient() {
                         <td style={{ fontFamily: 'monospace' }}>{retailer.phone}</td>
                         <td>
                           <span className={`badge ${retailer.active ? 'badge-success' : 'badge-warning'}`}>
-                            {retailer.active ? 'Authenticated' : 'Deactivated'}
+                            {retailer.active ? 'Active' : 'Deactivated'}
                           </span>
                         </td>
                         <td>🛒 {retailer._count.orders} orders</td>
@@ -575,12 +770,12 @@ export default function AdminDashboardClient() {
                               type="text" 
                               readOnly 
                               className="form-input" 
-                              style={{ minHeight: '36px', height: '36px', padding: '0 8px', fontSize: '13px', width: '220px', fontFamily: 'monospace' }}
+                              style={{ padding: '0 8px', fontSize: '13px', width: '220px', fontFamily: 'monospace', background: 'var(--bg-primary)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', cursor: 'default', boxShadow: 'none' }}
                               value={`${hostUrl}/r/${retailer.token}`} 
                             />
                             <button 
                               className="btn btn-primary" 
-                              style={{ minHeight: '36px', height: '36px', padding: '0 12px', fontSize: '13px' }}
+                              style={{ padding: '0 12px', fontSize: '13px' }}
                               onClick={() => handleCopyLink(retailer.token)}
                               disabled={!retailer.active}
                             >
@@ -591,22 +786,33 @@ export default function AdminDashboardClient() {
                         <td>
                           <div style={{ display: 'flex', gap: '6px' }}>
                             <button 
+                              className="btn btn-secondary" 
+                              style={{ padding: '0 10px', fontSize: '13px' }} 
+                              onClick={() => {
+                                setEditingRetailer(retailer);
+                                setRetailerForm({ shopName: retailer.shopName, phone: retailer.phone, active: retailer.active });
+                                setIsRetailerModalOpen(true);
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button 
                               className={`btn ${retailer.active ? 'btn-secondary' : 'btn-primary'}`} 
-                              style={{ minHeight: '36px', height: '36px', padding: '0 10px', fontSize: '13px' }} 
+                              style={{ padding: '0 10px', fontSize: '13px' }} 
                               onClick={() => toggleRetailerStatus(retailer)}
                             >
                               {retailer.active ? 'Disable' : 'Enable'}
                             </button>
                             <button 
                               className="btn btn-secondary" 
-                              style={{ minHeight: '36px', height: '36px', padding: '0 10px', fontSize: '13px' }} 
+                              style={{ padding: '0 10px', fontSize: '13px' }} 
                               onClick={() => regenerateRetailerLink(retailer.id)}
                             >
                               🔄 Reset
                             </button>
                             <button 
                               className="btn btn-danger" 
-                              style={{ minHeight: '36px', height: '36px', padding: '0 10px', fontSize: '13px' }} 
+                              style={{ padding: '0 10px', fontSize: '13px' }} 
                               onClick={() => handleDeleteRetailer(retailer.id)}
                             >
                               ❌
@@ -674,10 +880,12 @@ export default function AdminDashboardClient() {
                         <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>#{order.id}</td>
                         <td>
                           <div style={{ fontWeight: '600' }}>{order.retailer?.shopName}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{order.retailer?.phone}</div>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                            📞 <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a>
+                          </div>
                         </td>
                         <td>
-                          <span className="badge badge-success" style={{ textTransform: 'uppercase' }}>
+                          <span className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
                             {order.salesman?.companyName}
                           </span>
                         </td>
@@ -700,6 +908,84 @@ export default function AdminDashboardClient() {
                 </table>
               )}
             </div>
+          </div>
+        )}
+
+        {/* TAB 4: Preview Retailer View */}
+        {activeTab === 'preview' && (
+          <div>
+            {!selectedCompanyId ? (
+              <div>
+                <div className="dashboard-header">
+                  <div>
+                    <h1 className="dashboard-title">Pharma Companies Stock Catalogues</h1>
+                    <p style={{ color: 'var(--text-muted)' }}>Here is a replica of what the Retailers see. You can check stocks across all other companies.</p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px', marginTop: '16px' }}>
+                  {catalog.map((company, index) => {
+                    const initials = company.companyName.substring(0, 2).toUpperCase();
+                    // Custom colors for initials badges
+                    const colors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+                    const color = colors[index % colors.length];
+
+                    return (
+                      <button 
+                        key={company.id} 
+                        className="company-card"
+                        onClick={() => setSelectedCompanyId(company.id)}
+                      >
+                        <div className="avatar" style={{ backgroundColor: color }}>
+                          {initials}
+                        </div>
+                        <div className="company-info">
+                          <div className="company-name">{company.companyName}</div>
+                          <div className="company-meta">{company.stockItems.length} Products Available</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div>
+                <div className="mobile-header" style={{ position: 'static', padding: '16px 0', borderBottom: 'none', background: 'none' }}>
+                  <button className="back-btn" onClick={() => setSelectedCompanyId(null)} style={{ marginLeft: '-12px' }}>
+                    ←
+                  </button>
+                  <span className="mobile-header-title">{selectedCompany?.companyName} Stock</span>
+                </div>
+
+                <div style={{ maxWidth: '600px', marginTop: '12px' }}>
+                  {selectedCompany?.stockItems.length === 0 ? (
+                    <div className="empty-state">
+                      <div className="empty-icon">📦</div>
+                      <p>This company has not posted any products yet.</p>
+                    </div>
+                  ) : (
+                    selectedCompany?.stockItems.map((item) => (
+                      <div key={item.id} className={`stock-card ${item.quantity === 0 ? 'out-of-stock' : ''}`}>
+                        <div className="stock-header">
+                          <div>
+                            <div className="stock-title">{item.name}</div>
+                            <div className="stock-qty">
+                              {item.quantity > 0 ? `Stock: ${item.quantity} units available` : 'Product Out of Stock'}
+                            </div>
+                          </div>
+                          <div className="stock-price">₹{item.price.toFixed(2)}</div>
+                        </div>
+                        <div className="stock-actions" style={{ marginTop: '8px' }}>
+                          <span className="badge badge-neutral" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px', borderRadius: 'var(--radius-sm)' }}>
+                            👁️ View Only (Catalogue Preview)
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -892,7 +1178,7 @@ export default function AdminDashboardClient() {
                   className="form-input"
                   style={{ width: '100%', height: '240px', padding: '12px', fontFamily: 'monospace', resize: 'vertical' }}
                   required
-                  placeholder={`Apex Medico, 9876543210\nNational Pharmacy, 919876543210\nHealthCare Store, 9998887770`}
+                  placeholder={`Apex Medico, 9876543210\nNational Pharmacy, 9876543211\nHealthCare Store, 9998887770`}
                   value={bulkCsvText}
                   onChange={(e) => setBulkCsvText(e.target.value)}
                   disabled={loading}
@@ -905,6 +1191,46 @@ export default function AdminDashboardClient() {
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading || !bulkCsvText.trim()}>
                   {loading ? 'Uploading & Generating Links...' : 'Upload & Generate Links'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Salesman Bulk Upload */}
+      {isSalesmanBulkUploadModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Bulk Upload Salesmen</h2>
+              <button className="modal-close" onClick={() => setIsSalesmanBulkUploadModalOpen(false)}>×</button>
+            </div>
+            
+            <form onSubmit={handleSalesmanBulkUpload}>
+              <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                Paste CSV or list data below. Each line should contain <strong>Name, Company, Phone, Password</strong>.
+              </p>
+              
+              <div className="form-group">
+                <label className="form-label">Format: Name, Company, Phone, Password</label>
+                <textarea
+                  className="form-input"
+                  style={{ width: '100%', height: '240px', padding: '12px', fontFamily: 'monospace', resize: 'vertical' }}
+                  required
+                  placeholder={`Ramesh Kumar, Apex Pharma, 9876543210, secret123\nSuresh Singh, National Meds, 9876543211, pass456`}
+                  value={salesmanBulkCsvText}
+                  onChange={(e) => setSalesmanBulkCsvText(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setIsSalesmanBulkUploadModalOpen(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={loading || !salesmanBulkCsvText.trim()}>
+                  {loading ? 'Uploading...' : 'Upload Salesmen'}
                 </button>
               </div>
             </form>
@@ -925,7 +1251,7 @@ export default function AdminDashboardClient() {
               <button 
                 type="button" 
                 className="btn btn-secondary" 
-                style={{ flex: 1, minHeight: '44px', height: '44px' }} 
+                style={{ flex: 1 }} 
                 onClick={() => setShowLogoutModal(false)}
               >
                 Cancel
@@ -933,7 +1259,7 @@ export default function AdminDashboardClient() {
               <button 
                 type="button" 
                 className="btn btn-danger" 
-                style={{ flex: 1, minHeight: '44px', height: '44px' }} 
+                style={{ flex: 1 }} 
                 onClick={handleLogout}
               >
                 Okay
@@ -943,12 +1269,57 @@ export default function AdminDashboardClient() {
         </div>
       )}
 
+      {/* Shared Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        isDanger={confirmModal.isDanger}
+        onConfirm={confirmModal.onConfirm}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
+
       {/* TOAST POPUP NOTIFICATION */}
       {toast.visible && (
-        <div className="toast">
-          <span>🔔</span> {toast.message}
+        <div className={`toast ${toast.isError ? 'toast-error' : ''}`}>
+          <span>{toast.isError ? '✕' : '🔔'}</span> {toast.message}
         </div>
       )}
+    </div>
+  );
+}
+
+// SHARED GENERIC CONFIRM MODAL COMPONENT
+function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', isDanger = false }) {
+  if (!isOpen) return null;
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '24px' }}>
+        <div style={{ fontSize: '40px', marginBottom: '12px' }}>{isDanger ? '⚠️' : '❓'}</div>
+        <h2 className="modal-title" style={{ marginBottom: '12px' }}>{title}</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginBottom: '24px', lineHeight: '1.5' }}>
+          {message}
+        </p>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button 
+            type="button" 
+            className="btn btn-secondary" 
+            style={{ flex: 1 }} 
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button 
+            type="button" 
+            className={`btn ${isDanger ? 'btn-danger' : 'btn-primary'}`} 
+            style={{ flex: 1 }} 
+            onClick={onConfirm}
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

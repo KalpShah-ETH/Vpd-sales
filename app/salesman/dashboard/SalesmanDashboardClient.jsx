@@ -14,8 +14,36 @@ export default function SalesmanDashboardClient({ salesman }) {
   
   // UI state
   const [loading, setLoading] = useState(false);
-  const [toast, setToast] = useState({ visible: false, message: '' });
-  
+  const [toast, setToast] = useState({ visible: false, message: '', isError: false });
+  const [stockSearchQuery, setStockSearchQuery] = useState('');
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [orderStatusFilter, setOrderStatusFilter] = useState('ALL'); // ALL, PENDING, FULFILLED
+  const [submittingId, setSubmittingId] = useState(null);
+
+  // Custom Confirmation Modal State
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    isDanger: false,
+    confirmText: 'Confirm'
+  });
+
+  const triggerConfirm = (title, message, onConfirm, isDanger = false, confirmText = 'Confirm') => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      },
+      isDanger,
+      confirmText
+    });
+  };
+
   // Modals state
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // null means adding
@@ -37,9 +65,16 @@ export default function SalesmanDashboardClient({ salesman }) {
   }, []);
 
   const showToast = (message) => {
-    setToast({ visible: true, message });
+    setToast({ visible: true, message, isError: false });
     setTimeout(() => {
-      setToast({ visible: false, message: '' });
+      setToast({ visible: false, message: '', isError: false });
+    }, 3000);
+  };
+
+  const showErrorToast = (message) => {
+    setToast({ visible: true, message, isError: true });
+    setTimeout(() => {
+      setToast({ visible: false, message: '', isError: false });
     }, 3000);
   };
 
@@ -53,6 +88,7 @@ export default function SalesmanDashboardClient({ salesman }) {
       }
     } catch (err) {
       console.error(err);
+      showErrorToast('Failed to load data. Please refresh.');
     }
   };
 
@@ -66,6 +102,7 @@ export default function SalesmanDashboardClient({ salesman }) {
       }
     } catch (err) {
       console.error(err);
+      showErrorToast('Failed to load data. Please refresh.');
     }
   };
 
@@ -79,6 +116,7 @@ export default function SalesmanDashboardClient({ salesman }) {
       }
     } catch (err) {
       console.error(err);
+      showErrorToast('Failed to load data. Please refresh.');
     }
   };
 
@@ -90,6 +128,7 @@ export default function SalesmanDashboardClient({ salesman }) {
       router.push('/?role=salesman');
     } catch (err) {
       console.error(err);
+      showErrorToast('Logout failed');
     }
   };
 
@@ -119,28 +158,41 @@ export default function SalesmanDashboardClient({ salesman }) {
       fetchStock();
       fetchCatalog(); // Refresh preview catalog too
     } catch (err) {
-      alert(err.message);
+      showErrorToast(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   // Delete Stock Item
-  const handleDeleteStock = async (id) => {
-    if (!confirm('Are you sure you want to remove this product from the catalogue?')) return;
-    try {
-      const res = await fetch(`/api/salesman/stock?id=${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Failed to delete');
-      showToast('Product removed from catalogue');
-      fetchStock();
-      fetchCatalog(); // Refresh preview catalog too
-    } catch (err) {
-      alert(err.message);
-    }
+  const handleDeleteStock = (id) => {
+    if (submittingId) return;
+    triggerConfirm(
+      'Remove Product',
+      'Are you sure you want to remove this product from the catalogue?',
+      async () => {
+        setSubmittingId(id);
+        try {
+          const res = await fetch(`/api/salesman/stock?id=${id}`, { method: 'DELETE' });
+          if (!res.ok) throw new Error('Failed to delete');
+          showToast('Product removed from catalogue');
+          fetchStock();
+          fetchCatalog(); // Refresh preview catalog too
+        } catch (err) {
+          showErrorToast(err.message);
+        } finally {
+          setSubmittingId(null);
+        }
+      },
+      true,
+      'Remove'
+    );
   };
 
   // Mark Order as Fulfilled
   const handleFulfillOrder = async (id) => {
+    if (submittingId) return;
+    setSubmittingId(id);
     try {
       const res = await fetch('/api/salesman/orders', {
         method: 'PUT',
@@ -151,7 +203,9 @@ export default function SalesmanDashboardClient({ salesman }) {
       showToast('Order marked as fulfilled!');
       fetchOrders();
     } catch (err) {
-      alert(err.message);
+      showErrorToast(err.message);
+    } finally {
+      setSubmittingId(null);
     }
   };
 
@@ -190,6 +244,27 @@ export default function SalesmanDashboardClient({ salesman }) {
     return catalog.find(c => c.id === selectedCompanyId);
   }, [catalog, selectedCompanyId]);
 
+  const filteredStock = useMemo(() => {
+    if (!stockSearchQuery) return stockItems;
+    const query = stockSearchQuery.toLowerCase();
+    return stockItems.filter(item => item.name.toLowerCase().includes(query));
+  }, [stockItems, stockSearchQuery]);
+
+  const filteredOrders = useMemo(() => {
+    let result = orders;
+    if (orderSearchQuery) {
+      const query = orderSearchQuery.toLowerCase();
+      result = result.filter(order => 
+        order.retailer?.shopName?.toLowerCase().includes(query) ||
+        order.productName?.toLowerCase().includes(query)
+      );
+    }
+    if (orderStatusFilter !== 'ALL') {
+      result = result.filter(order => order.status === orderStatusFilter);
+    }
+    return result;
+  }, [orders, orderSearchQuery, orderStatusFilter]);
+
   return (
     <div className="dashboard-grid">
       {/* Sidebar Backdrop for Mobile */}
@@ -202,15 +277,10 @@ export default function SalesmanDashboardClient({ salesman }) {
             <span>📦</span> {salesman.companyName}
           </div>
           <button 
-            className="sidebar-close-btn"
+            className="back-btn sidebar-close-btn"
             onClick={() => setIsSidebarOpen(false)}
             style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '28px',
-              cursor: 'pointer',
-              color: 'var(--text-muted)',
-              padding: '4px'
+              color: 'var(--text-muted)'
             }}
           >
             ×
@@ -219,7 +289,7 @@ export default function SalesmanDashboardClient({ salesman }) {
         <div style={{ padding: '0 16px', margin: '-16px 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
           Rep: {salesman.name}
         </div>
-        <ul className="sidebar-menu">
+        <ul className="sidebar-menu" style={{ flex: 1 }}>
           <li>
             <button 
               className={`sidebar-link ${activeTab === 'stock' ? 'active' : ''}`}
@@ -296,12 +366,24 @@ export default function SalesmanDashboardClient({ salesman }) {
               </button>
             </div>
 
+            {/* Search filter */}
+            <div style={{ marginBottom: '20px', display: 'flex', maxWidth: '400px' }}>
+              <input
+                type="text"
+                className="form-input"
+                style={{ width: '100%' }}
+                placeholder="Search by product name..."
+                value={stockSearchQuery}
+                onChange={(e) => setStockSearchQuery(e.target.value)}
+              />
+            </div>
+
             <div className="table-container">
-              {stockItems.length === 0 ? (
+              {filteredStock.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">📦</div>
-                  <p>Your catalogue is empty.</p>
-                  <button className="btn btn-secondary" onClick={openAddStockModal}>Add Your First Product</button>
+                  <p>{stockSearchQuery ? 'No matching products found.' : 'Your catalogue is empty.'}</p>
+                  {!stockSearchQuery && <button className="btn btn-secondary" onClick={openAddStockModal}>Add Your First Product</button>}
                 </div>
               ) : (
                 <table className="data-table">
@@ -315,7 +397,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {stockItems.map((item) => (
+                    {filteredStock.map((item) => (
                       <tr key={item.id} className={item.quantity === 0 ? 'out-of-stock' : ''} style={item.quantity === 0 ? { opacity: 0.6 } : {}}>
                         <td>
                           <div style={{ fontWeight: '600', fontSize: '16px' }}>{item.name}</div>
@@ -329,11 +411,11 @@ export default function SalesmanDashboardClient({ salesman }) {
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className="btn btn-secondary" style={{ minHeight: '36px', height: '36px', padding: '0 12px', fontSize: '14px' }} onClick={() => openEditStockModal(item)}>
+                            <button className="btn btn-secondary" style={{ padding: '0 10px', fontSize: '14px' }} disabled={submittingId === item.id} onClick={() => openEditStockModal(item)}>
                               Edit Stock/Price
                             </button>
-                            <button className="btn btn-danger" style={{ minHeight: '36px', height: '36px', padding: '0 12px', fontSize: '14px' }} onClick={() => handleDeleteStock(item.id)}>
-                              Delete
+                            <button className="btn btn-danger" style={{ padding: '0 10px', fontSize: '14px' }} disabled={submittingId === item.id} onClick={() => handleDeleteStock(item.id)}>
+                              {submittingId === item.id ? 'Removing...' : 'Delete'}
                             </button>
                           </div>
                         </td>
@@ -372,11 +454,33 @@ export default function SalesmanDashboardClient({ salesman }) {
               </div>
             </div>
 
+            {/* Search and status filters */}
+            <div style={{ marginBottom: '20px', display: 'flex', gap: '12px', maxWidth: '600px' }}>
+              <input
+                type="text"
+                className="form-input"
+                style={{ flex: 1 }}
+                placeholder="Search by shop or product name..."
+                value={orderSearchQuery}
+                onChange={(e) => setOrderSearchQuery(e.target.value)}
+              />
+              <select
+                className="form-input"
+                style={{ width: '180px' }}
+                value={orderStatusFilter}
+                onChange={(e) => setOrderStatusFilter(e.target.value)}
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="PENDING">Pending Delivery</option>
+                <option value="FULFILLED">Delivered</option>
+              </select>
+            </div>
+
             <div className="table-container">
-              {orders.length === 0 ? (
+              {filteredOrders.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">🧾</div>
-                  <p>No orders received yet.</p>
+                  <p>No matching orders found.</p>
                 </div>
               ) : (
                 <table className="data-table">
@@ -393,7 +497,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {orders.map((order) => (
+                    {filteredOrders.map((order) => (
                       <tr key={order.id}>
                         <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>#{order.id}</td>
                         <td>
@@ -409,7 +513,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                         </td>
                         <td>
                           <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
-                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ WhatsApp Message Sent'}
+                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
                           </span>
                         </td>
                         <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
@@ -418,8 +522,8 @@ export default function SalesmanDashboardClient({ salesman }) {
                         <td>
                           {order.status === 'PENDING' ? (
                             <button 
-                              className="btn btn-primary" 
-                              style={{ minHeight: '36px', height: '36px', padding: '0 12px', fontSize: '13px', backgroundColor: 'var(--success)' }} 
+                              className="btn btn-success" 
+                              style={{ padding: '0 12px', fontSize: '13px' }} 
                               onClick={() => handleFulfillOrder(order.id)}
                             >
                               ✓ Mark Delivered
@@ -501,14 +605,10 @@ export default function SalesmanDashboardClient({ salesman }) {
                           </div>
                           <div className="stock-price">₹{item.price.toFixed(2)}</div>
                         </div>
-                        <div className="stock-actions">
-                          <button 
-                            className="btn btn-primary btn-full"
-                            style={item.quantity === 0 ? { backgroundColor: 'var(--gray-out)', cursor: 'not-allowed' } : {}}
-                            disabled={item.quantity === 0}
-                          >
-                            {item.quantity > 0 ? 'ORDER (WhatsApp Redirect)' : 'OUT OF STOCK (N/A)'}
-                          </button>
+                        <div className="stock-actions" style={{ marginTop: '8px' }}>
+                          <span className="badge badge-neutral" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px', borderRadius: 'var(--radius-sm)' }}>
+                            👁️ View Only (Catalogue Preview)
+                          </span>
                         </div>
                       </div>
                     ))
@@ -598,7 +698,7 @@ export default function SalesmanDashboardClient({ salesman }) {
               <button 
                 type="button" 
                 className="btn btn-secondary" 
-                style={{ flex: 1, minHeight: '44px', height: '44px' }} 
+                style={{ flex: 1 }} 
                 onClick={() => setShowLogoutModal(false)}
               >
                 Cancel
@@ -606,7 +706,7 @@ export default function SalesmanDashboardClient({ salesman }) {
               <button 
                 type="button" 
                 className="btn btn-danger" 
-                style={{ flex: 1, minHeight: '44px', height: '44px' }} 
+                style={{ flex: 1 }} 
                 onClick={handleLogout}
               >
                 Okay
@@ -616,12 +716,57 @@ export default function SalesmanDashboardClient({ salesman }) {
         </div>
       )}
 
+      {/* Shared Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        isDanger={confirmModal.isDanger}
+        onConfirm={confirmModal.onConfirm}
+        onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+      />
+
       {/* TOAST POPUP NOTIFICATION */}
       {toast.visible && (
-        <div className="toast">
-          <span>🔔</span> {toast.message}
+        <div className={`toast ${toast.isError ? 'toast-error' : ''}`}>
+          <span>{toast.isError ? '✕' : '🔔'}</span> {toast.message}
         </div>
       )}
+    </div>
+  );
+}
+
+// SHARED GENERIC CONFIRM MODAL COMPONENT
+function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', isDanger = false }) {
+  if (!isOpen) return null;
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center', padding: '24px' }}>
+        <div style={{ fontSize: '40px', marginBottom: '12px' }}>{isDanger ? '⚠️' : '❓'}</div>
+        <h2 className="modal-title" style={{ marginBottom: '12px' }}>{title}</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginBottom: '24px', lineHeight: '1.5' }}>
+          {message}
+        </p>
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button 
+            type="button" 
+            className="btn btn-secondary" 
+            style={{ flex: 1 }} 
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button 
+            type="button" 
+            className={`btn ${isDanger ? 'btn-danger' : 'btn-primary'}`} 
+            style={{ flex: 1 }} 
+            onClick={onConfirm}
+          >
+            {confirmText}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -55,6 +55,14 @@ export async function POST(request) {
 
 // Support simple logout through this route
 export async function DELETE() {
+  const { cookies } = await import('next/headers');
+  const cookieStore = await cookies();
+  const token = cookieStore.get('admin_session')?.value;
+  if (token) {
+    const { blacklistToken } = await import('@/lib/auth');
+    blacklistToken(token);
+  }
+
   const response = NextResponse.json({ success: true, message: 'Logged out successfully' });
   deleteAuthCookie(response, 'admin_session');
   return response;

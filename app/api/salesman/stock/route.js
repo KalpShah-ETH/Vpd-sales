@@ -40,11 +40,21 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Name, price, and quantity are required' }, { status: 400 });
     }
 
+    const numPrice = parseFloat(price);
+    const numQty = parseInt(quantity);
+
+    if (isNaN(numPrice) || numPrice < 0) {
+      return NextResponse.json({ error: 'Price must be a valid non-negative number' }, { status: 400 });
+    }
+    if (isNaN(numQty) || numQty < 0) {
+      return NextResponse.json({ error: 'Quantity must be a valid non-negative integer' }, { status: 400 });
+    }
+
     const item = await prisma.stockItem.create({
       data: {
         name: name.trim(),
-        price: parseFloat(price),
-        quantity: parseInt(quantity),
+        price: numPrice,
+        quantity: numQty,
         salesmanId: salesman.id
       }
     });
@@ -80,8 +90,22 @@ export async function PUT(request) {
 
     const updateData = {};
     if (name) updateData.name = name.trim();
-    if (price !== undefined) updateData.price = parseFloat(price);
-    if (quantity !== undefined) updateData.quantity = parseInt(quantity);
+    
+    if (price !== undefined) {
+      const numPrice = parseFloat(price);
+      if (isNaN(numPrice) || numPrice < 0) {
+        return NextResponse.json({ error: 'Price must be a valid non-negative number' }, { status: 400 });
+      }
+      updateData.price = numPrice;
+    }
+
+    if (quantity !== undefined) {
+      const numQty = parseInt(quantity);
+      if (isNaN(numQty) || numQty < 0) {
+        return NextResponse.json({ error: 'Quantity must be a valid non-negative integer' }, { status: 400 });
+      }
+      updateData.quantity = numQty;
+    }
 
     const item = await prisma.stockItem.update({
       where: { id: parseInt(id) },

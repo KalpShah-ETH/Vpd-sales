@@ -6,10 +6,15 @@ import { validateSession } from '@/lib/auth';
 export async function GET() {
   const cookieStore = await cookies();
   
+  // Short-circuit: only validate session if corresponding cookie exists
+  const hasRetailerCookie = cookieStore.has('retailer_session');
+  const hasSalesmanCookie = cookieStore.has('salesman_session');
+  const hasAdminCookie = cookieStore.has('admin_session');
+
   // A retailer, salesman, or admin can access the catalog
-  const retailer = await validateSession(cookieStore, 'retailer_session', 'retailer');
-  const salesman = retailer ? null : await validateSession(cookieStore, 'salesman_session', 'salesman');
-  const admin = (retailer || salesman) ? null : await validateSession(cookieStore, 'admin_session', 'admin');
+  const retailer = hasRetailerCookie ? await validateSession(cookieStore, 'retailer_session', 'retailer') : null;
+  const salesman = (!retailer && hasSalesmanCookie) ? await validateSession(cookieStore, 'salesman_session', 'salesman') : null;
+  const admin = (!retailer && !salesman && hasAdminCookie) ? await validateSession(cookieStore, 'admin_session', 'admin') : null;
   
   if (!retailer && !salesman && !admin) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

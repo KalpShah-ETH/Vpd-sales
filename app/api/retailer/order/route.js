@@ -124,6 +124,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
+      orderId: orderResults[0]?.order.id,
       waUrl
     });
   } catch (error) {

@@ -18,7 +18,7 @@ async function runTests() {
   let testStockItemId = null;
   let testOrderId = null;
 
-  const testSalesmanUsername = `test_salesman_${Date.now()}`;
+  const testSalesmanUsername = '9876543210';
   const testSalesmanPassword = 'password123';
   const testRetailerPhone = `9900${Math.floor(100000 + Math.random() * 900000)}`;
 

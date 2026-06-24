@@ -36,6 +36,8 @@ model Retailer {
   salesmanId Int?
   salesman   Salesman? @relation(fields: [salesmanId], references: [id], onDelete: Cascade)
   orders     Order[]
+
+  @@index([salesmanId])
 }
 
 model StockItem {
@@ -45,6 +47,8 @@ model StockItem {
   quantity   Int
   salesmanId Int
   salesman   Salesman @relation(fields: [salesmanId], references: [id], onDelete: Cascade)
+
+  @@index([salesmanId])
 }
 
 model Order {
@@ -58,6 +62,9 @@ model Order {
   price       Float    // Price of product at time of order
   status      String   @default("PENDING") // PENDING or FULFILLED
   createdAt   DateTime @default(now())
+
+  @@index([salesmanId])
+  @@index([retailerId])
 }
 
 model Setting {

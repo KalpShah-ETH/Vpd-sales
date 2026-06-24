@@ -6,9 +6,9 @@ export default async function BrowsePage() {
   const cookieStore = await cookies();
   
   // Verify retailer session, fallback to salesman or admin for testing previews
-  const retailer = validateSession(cookieStore, 'retailer_session', 'retailer');
-  const salesman = validateSession(cookieStore, 'salesman_session', 'salesman');
-  const admin = validateSession(cookieStore, 'admin_session', 'admin');
+  const retailer = await validateSession(cookieStore, 'retailer_session', 'retailer');
+  const salesman = retailer ? null : await validateSession(cookieStore, 'salesman_session', 'salesman');
+  const admin = (retailer || salesman) ? null : await validateSession(cookieStore, 'admin_session', 'admin');
 
   if (!retailer && !salesman && !admin) {
     return (

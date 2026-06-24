@@ -7,7 +7,7 @@ import { validateSession } from '@/lib/auth';
 // Helper to check admin permission
 async function checkAdminAuth() {
   const cookieStore = await cookies();
-  return validateSession(cookieStore, 'admin_session', 'admin');
+  return await validateSession(cookieStore, 'admin_session', 'admin');
 }
 
 export async function GET() {

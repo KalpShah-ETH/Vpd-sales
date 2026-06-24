@@ -7,8 +7,12 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const secret = searchParams.get('secret');
     
-    // We can compare against env secret if set, but run always if none is configured
-    if (process.env.CRON_SECRET && secret !== process.env.CRON_SECRET) {
+    const cronSecret = process.env.CRON_SECRET;
+    const authHeader = request.headers.get('authorization');
+    const authHeaderSecret = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
+    const providedSecret = secret || authHeaderSecret;
+
+    if (!cronSecret || providedSecret !== cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 

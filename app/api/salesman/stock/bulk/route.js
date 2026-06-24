@@ -5,7 +5,7 @@ import { validateSession } from '@/lib/auth';
 
 async function checkSalesmanAuth() {
   const cookieStore = await cookies();
-  return validateSession(cookieStore, 'salesman_session', 'salesman');
+  return await validateSession(cookieStore, 'salesman_session', 'salesman');
 }
 
 export async function POST(request) {

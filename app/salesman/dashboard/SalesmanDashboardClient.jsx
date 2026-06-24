@@ -74,7 +74,6 @@ export default function SalesmanDashboardClient({ salesman }) {
     const interval = setInterval(() => {
       fetchStock();
       fetchOrders();
-      fetchRetailers();
     }, 4000);
 
     return () => clearInterval(interval);

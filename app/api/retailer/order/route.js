@@ -5,7 +5,7 @@ import { validateSession } from '@/lib/auth';
 
 export async function POST(request) {
   const cookieStore = await cookies();
-  const retailerSession = validateSession(cookieStore, 'retailer_session', 'retailer');
+  const retailerSession = await validateSession(cookieStore, 'retailer_session', 'retailer');
 
   if (!retailerSession) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -56,6 +56,10 @@ export async function POST(request) {
 
         if (!stockItem || !stockItem.salesman || !stockItem.salesman.active) {
           throw { status: 404, error: `Product "${stockItem?.name || 'Unknown'}" or company is currently unavailable` };
+        }
+
+        if (dbRetailer.salesmanId && stockItem.salesmanId !== dbRetailer.salesmanId) {
+          throw { status: 403, error: `Unauthorized: Product "${stockItem.name}" does not belong to your company catalog` };
         }
 
         if (stockItem.quantity < entry.quantity) {

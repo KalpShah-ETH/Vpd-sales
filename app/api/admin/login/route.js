@@ -14,11 +14,24 @@ export async function POST(request) {
       );
     }
 
+    const { checkLockout, handleFailedAttempt, handleSuccessfulLogin } = await import('@/lib/lockout');
+    
+    // Check lockout first
+    const lockoutTime = await checkLockout(username);
+    if (lockoutTime) {
+      const minutesLeft = Math.ceil((lockoutTime - Date.now()) / 60000);
+      return NextResponse.json(
+        { error: `Too many failed attempts. Account is locked. Try again in ${minutesLeft} minute(s).` },
+        { status: 423 }
+      );
+    }
+
     const admin = await prisma.admin.findUnique({
       where: { username },
     });
 
     if (!admin) {
+      await handleFailedAttempt(username);
       return NextResponse.json(
         { error: 'Wrong username or password' },
         { status: 401 }
@@ -27,11 +40,14 @@ export async function POST(request) {
 
     const isMatch = await bcrypt.compare(password, admin.passwordHash);
     if (!isMatch) {
+      await handleFailedAttempt(username);
       return NextResponse.json(
         { error: 'Wrong username or password' },
         { status: 401 }
       );
     }
+
+    await handleSuccessfulLogin(username);
 
     // Login successful
     const token = signToken({
@@ -60,7 +76,7 @@ export async function DELETE() {
   const token = cookieStore.get('admin_session')?.value;
   if (token) {
     const { blacklistToken } = await import('@/lib/auth');
-    blacklistToken(token);
+    await blacklistToken(token);
   }
 
   const response = NextResponse.json({ success: true, message: 'Logged out successfully' });

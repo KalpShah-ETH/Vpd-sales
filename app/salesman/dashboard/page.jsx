@@ -5,7 +5,7 @@ import SalesmanDashboardClient from './SalesmanDashboardClient';
 
 export default async function SalesmanDashboardPage() {
   const cookieStore = await cookies();
-  const salesman = validateSession(cookieStore, 'salesman_session', 'salesman');
+  const salesman = await validateSession(cookieStore, 'salesman_session', 'salesman');
 
   if (!salesman) {
     redirect('/?role=salesman');

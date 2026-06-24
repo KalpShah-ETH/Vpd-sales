@@ -2,12 +2,11 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import prisma from '@/lib/db';
 import { validateSession } from '@/lib/auth';
-import { cleanupOldOrders } from '@/lib/cleanup';
 
 // Helper to check admin permission
 async function checkAdminAuth() {
   const cookieStore = await cookies();
-  return validateSession(cookieStore, 'admin_session', 'admin');
+  return await validateSession(cookieStore, 'admin_session', 'admin');
 }
 
 export async function GET() {
@@ -17,9 +16,6 @@ export async function GET() {
   }
 
   try {
-    // Trigger cleanup silently in the background
-    cleanupOldOrders().catch(err => console.error('Silent cleanup err:', err));
-
     const orders = await prisma.order.findMany({
       orderBy: { createdAt: 'desc' },
       include: {

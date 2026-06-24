@@ -82,11 +82,14 @@ export default function AdminDashboardClient() {
     if (typeof window !== 'undefined') {
       setHostUrl(window.location.origin);
     }
-    fetchSalesmen();
-    fetchRetailers();
-    fetchOrders();
-    fetchCatalog();
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'salesmen') fetchSalesmen();
+    if (activeTab === 'retailers') fetchRetailers();
+    if (activeTab === 'orders') fetchOrders();
+    if (activeTab === 'preview') fetchCatalog();
+  }, [activeTab]);
 
   // Show toast notification
   const showToast = (message) => {

@@ -379,7 +379,7 @@ export default function SalesmanDashboardClient({ salesman }) {
   const orderStats = useMemo(() => {
     const pending = orders.filter(o => o.status === 'PENDING').length;
     const fulfilled = orders.filter(o => o.status === 'FULFILLED').length;
-    const totalBilling = orders.reduce((sum, o) => sum + (o.quantity * o.price), 0);
+    const totalBilling = orders.filter(o => o.status === 'FULFILLED').reduce((sum, o) => sum + (o.quantity * o.price), 0);
     return {
       total: orders.length,
       pending,
@@ -510,6 +510,7 @@ export default function SalesmanDashboardClient({ salesman }) {
         <button 
           className="menu-toggle-btn" 
           onClick={() => setIsSidebarOpen(true)}
+          aria-label="Open sidebar menu"
         >
           ☰
         </button>
@@ -724,7 +725,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                     const initials = company.companyName.substring(0, 2).toUpperCase();
                     // Custom colors for initials badges
                     const colors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-                    const color = colors[index % colors.length];
+                    const color = colors[company.id % colors.length];
 
                     return (
                       <button 
@@ -1040,20 +1041,13 @@ export default function SalesmanDashboardClient({ salesman }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {csvItems.slice(0, 10).map((item, idx) => (
+                        {csvItems.map((item, idx) => (
                           <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
                             <td style={{ padding: '6px', fontWeight: '500' }}>{item.name}</td>
                             <td style={{ padding: '6px' }}>₹{item.price.toFixed(2)}</td>
                             <td style={{ padding: '6px' }}>{item.quantity}</td>
                           </tr>
                         ))}
-                        {csvItems.length > 10 && (
-                          <tr>
-                            <td colSpan="3" style={{ padding: '6px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                              ... and {csvItems.length - 10} more items
-                            </td>
-                          </tr>
-                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1139,7 +1133,7 @@ export default function SalesmanDashboardClient({ salesman }) {
       {/* TOAST POPUP NOTIFICATION */}
       {toast.visible && (
         <div className={`toast ${toast.isError ? 'toast-error' : ''}`}>
-          <span>{toast.isError ? '✕' : '🔔'}</span> {toast.message}
+          <span>{toast.isError ? '✕' : '✓'}</span> {toast.message}
         </div>
       )}
     </div>

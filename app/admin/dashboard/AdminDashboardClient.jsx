@@ -538,6 +538,7 @@ export default function AdminDashboardClient() {
               className={`sidebar-link ${activeTab === 'salesmen' ? 'active' : ''}`}
               onClick={() => {
                 setActiveTab('salesmen');
+                setSelectedCompanyId(null);
                 setIsSidebarOpen(false);
               }}
             >
@@ -549,6 +550,7 @@ export default function AdminDashboardClient() {
               className={`sidebar-link ${activeTab === 'retailers' ? 'active' : ''}`}
               onClick={() => {
                 setActiveTab('retailers');
+                setSelectedCompanyId(null);
                 setIsSidebarOpen(false);
               }}
             >
@@ -560,10 +562,16 @@ export default function AdminDashboardClient() {
               className={`sidebar-link ${activeTab === 'orders' ? 'active' : ''}`}
               onClick={() => {
                 setActiveTab('orders');
+                setSelectedCompanyId(null);
                 setIsSidebarOpen(false);
               }}
             >
               📊 System Orders Feed
+              {stats.pendingOrders > 0 && (
+                <span className="badge badge-warning" style={{ marginLeft: 'auto', borderRadius: '4px', padding: '2px 6px' }}>
+                  {stats.pendingOrders}
+                </span>
+              )}
             </button>
           </li>
           <li>
@@ -583,6 +591,7 @@ export default function AdminDashboardClient() {
               className={`sidebar-link ${activeTab === 'settings' ? 'active' : ''}`}
               onClick={() => {
                 setActiveTab('settings');
+                setSelectedCompanyId(null);
                 setIsSidebarOpen(false);
               }}
             >
@@ -609,6 +618,7 @@ export default function AdminDashboardClient() {
         <button 
           className="menu-toggle-btn" 
           onClick={() => setIsSidebarOpen(true)}
+          aria-label="Open sidebar menu"
         >
           ☰
         </button>
@@ -853,14 +863,14 @@ export default function AdminDashboardClient() {
                               style={{ padding: '0 10px', fontSize: '13px' }} 
                               onClick={() => regenerateRetailerLink(retailer.id)}
                             >
-                              🔄 Reset
+                              🔄 Reset Link
                             </button>
                             <button 
                               className="btn btn-danger" 
                               style={{ padding: '0 10px', fontSize: '13px' }} 
                               onClick={() => handleDeleteRetailer(retailer.id)}
                             >
-                              ❌
+                              ❌ Delete
                             </button>
                           </div>
                         </td>
@@ -941,7 +951,7 @@ export default function AdminDashboardClient() {
                         </td>
                         <td>
                           <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
-                            {order.status === 'FULFILLED' ? '✓ Delivered & Fulfilled' : '⏳ WhatsApp Message Sent'}
+                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
                           </span>
                         </td>
                         <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
@@ -973,13 +983,17 @@ export default function AdminDashboardClient() {
                     const initials = company.companyName.substring(0, 2).toUpperCase();
                     // Custom colors for initials badges
                     const colors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-                    const color = colors[index % colors.length];
+                    const color = colors[company.id % colors.length];
 
                     return (
                       <button 
                         key={company.id} 
                         className="company-card"
-                        onClick={() => setSelectedCompanyId(company.id)}
+                        onClick={() => {
+                          setSelectedCompanyId(company.id);
+                          setSearchQuery('');
+                          window.scrollTo(0, 0);
+                        }}
                       >
                         <div className="avatar" style={{ backgroundColor: color }}>
                           {initials}
@@ -996,7 +1010,7 @@ export default function AdminDashboardClient() {
             ) : (
               <div>
                 <div className="mobile-header" style={{ position: 'static', padding: '16px 0', borderBottom: 'none', background: 'none' }}>
-                  <button className="back-btn" onClick={() => setSelectedCompanyId(null)} style={{ marginLeft: '-12px' }}>
+                  <button className="back-btn" onClick={() => { setSelectedCompanyId(null); setSearchQuery(''); window.scrollTo(0, 0); }} style={{ marginLeft: '-12px' }}>
                     ←
                   </button>
                   <span className="mobile-header-title">{selectedCompany?.companyName} Stock</span>
@@ -1236,7 +1250,7 @@ export default function AdminDashboardClient() {
               <div className="form-group">
                 <label className="form-label">Retailer Phone Number</label>
                 <input
-                  type="text"
+                  type="tel"
                   className="form-input"
                   required
                   value={retailerForm.phone}
@@ -1318,7 +1332,7 @@ export default function AdminDashboardClient() {
                   className="form-input"
                   style={{ width: '100%', height: '240px', padding: '12px', fontFamily: 'monospace', resize: 'vertical' }}
                   required
-                  placeholder={`Ramesh Kumar, Apex Pharma, 9876543210, secret123\nSuresh Singh, National Meds, 9876543211, pass456`}
+                  placeholder={`Ramesh Kumar, Apex Pharma, 9876543210, [password]\nSuresh Singh, National Meds, 9876543211, [password]`}
                   value={salesmanBulkCsvText}
                   onChange={(e) => setSalesmanBulkCsvText(e.target.value)}
                   disabled={loading}
@@ -1383,7 +1397,7 @@ export default function AdminDashboardClient() {
       {/* TOAST POPUP NOTIFICATION */}
       {toast.visible && (
         <div className={`toast ${toast.isError ? 'toast-error' : ''}`}>
-          <span>{toast.isError ? '✕' : '🔔'}</span> {toast.message}
+          <span>{toast.isError ? '✕' : '✓'}</span> {toast.message}
         </div>
       )}
     </div>

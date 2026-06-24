@@ -19,6 +19,10 @@ export default function RetailerBrowseClient({ shopName }) {
 
   useEffect(() => {
     fetchSettings();
+    if (typeof window !== 'undefined' && sessionStorage.getItem('last_order_placed') === 'true') {
+      showToast('Order successfully saved!');
+      sessionStorage.removeItem('last_order_placed');
+    }
   }, []);
 
   useEffect(() => {
@@ -68,14 +72,14 @@ export default function RetailerBrowseClient({ shopName }) {
     setToast({ visible: true, message, isError: false });
     setTimeout(() => {
       setToast({ visible: false, message: '', isError: false });
-    }, 4000);
+    }, 3000);
   };
 
   const showErrorToast = (message) => {
     setToast({ visible: true, message, isError: true });
     setTimeout(() => {
       setToast({ visible: false, message: '', isError: false });
-    }, 4000);
+    }, 3000);
   };
 
   const fetchCatalog = async (silent = false) => {
@@ -163,6 +167,7 @@ export default function RetailerBrowseClient({ shopName }) {
       setQuantities({ ...quantities, [itemId]: 1 });
 
       // Immediate handoff to WhatsApp
+      sessionStorage.setItem('last_order_placed', 'true');
       window.location.href = data.waUrl;
     } catch (err) {
       showErrorToast(err.message);
@@ -237,6 +242,7 @@ export default function RetailerBrowseClient({ shopName }) {
 
       setCart([]);
       setIsCartOpen(false);
+      sessionStorage.setItem('last_order_placed', 'true');
       window.location.href = data.waUrl;
     } catch (err) {
       showErrorToast(err.message);
@@ -283,7 +289,7 @@ export default function RetailerBrowseClient({ shopName }) {
             ) : (
               catalog.map((company, index) => {
                 const initials = company.companyName.substring(0, 2).toUpperCase();
-                const color = avatarColors[index % avatarColors.length];
+                const color = avatarColors[company.id % avatarColors.length];
 
                 return (
                   <button 
@@ -291,6 +297,8 @@ export default function RetailerBrowseClient({ shopName }) {
                     className="company-card"
                     onClick={() => {
                       setSelectedCompanyId(company.id);
+                      setSearchQuery('');
+                      setDebouncedSearchQuery('');
                       window.scrollTo(0, 0);
                     }}
                   >
@@ -318,7 +326,12 @@ export default function RetailerBrowseClient({ shopName }) {
           <div className="mobile-header" style={{ marginLeft: '-16px', marginRight: '-16px', marginTop: '-16px', marginBottom: '20px' }}>
             <button 
               className="back-btn" 
-              onClick={() => setSelectedCompanyId(null)}
+              onClick={() => {
+                setSelectedCompanyId(null);
+                setSearchQuery('');
+                setDebouncedSearchQuery('');
+                window.scrollTo(0, 0);
+              }}
               style={{ fontSize: '28px', fontWeight: 'bold' }}
             >
               ←
@@ -506,7 +519,6 @@ export default function RetailerBrowseClient({ shopName }) {
               <h2 className="modal-title" style={{ fontSize: '20px' }}>🛒 My Order Cart</h2>
               <button className="modal-close" onClick={() => {
                 setIsCartOpen(false);
-                setQuantities({});
               }}>×</button>
             </div>
 
@@ -616,7 +628,7 @@ export default function RetailerBrowseClient({ shopName }) {
       {/* TOAST POPUP NOTIFICATION */}
       {toast.visible && (
         <div className={`toast ${toast.isError ? 'toast-error' : ''}`}>
-          <span>{toast.isError ? '✕' : '🔔'}</span> {toast.message}
+          <span>{toast.isError ? '✕' : '✓'}</span> {toast.message}
         </div>
       )}
     </div>

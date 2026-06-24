@@ -24,15 +24,18 @@ model Salesman {
   active       Boolean     @default(true)
   stockItems   StockItem[]
   orders       Order[]
+  retailers    Retailer[]
 }
 
 model Retailer {
-  id       Int     @id @default(autoincrement())
-  shopName String
-  phone    String  @unique
-  token    String  @unique // Secure unique token for silent login URL
-  active   Boolean @default(true)
-  orders   Order[]
+  id         Int       @id @default(autoincrement())
+  shopName   String
+  phone      String    @unique
+  token      String    @unique // Secure unique token for silent login URL
+  active     Boolean   @default(true)
+  salesmanId Int?
+  salesman   Salesman? @relation(fields: [salesmanId], references: [id], onDelete: Cascade)
+  orders     Order[]
 }
 
 model StockItem {
@@ -55,4 +58,10 @@ model Order {
   price       Float    // Price of product at time of order
   status      String   @default("PENDING") // PENDING or FULFILLED
   createdAt   DateTime @default(now())
+}
+
+model Setting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String
 }

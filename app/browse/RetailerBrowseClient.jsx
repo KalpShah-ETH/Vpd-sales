@@ -11,9 +11,57 @@ export default function RetailerBrowseClient({ shopName }) {
   const [quantities, setQuantities] = useState({});
   const [submittingItemId, setSubmittingItemId] = useState(null);
   const [toast, setToast] = useState({ visible: false, message: '', isError: false });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [cart, setCart] = useState([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
+  const [bgVersion, setBgVersion] = useState(null);
+
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  useEffect(() => {
+    if (bgVersion) {
+      document.body.style.backgroundImage = `url('/retailer-bg.jpg?v=${bgVersion}')`;
+      document.body.style.backgroundSize = 'cover';
+      document.body.style.backgroundPosition = 'center';
+      document.body.style.backgroundAttachment = 'fixed';
+    }
+    return () => {
+      document.body.style.backgroundImage = '';
+    };
+  }, [bgVersion]);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch('/api/retailer/settings');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.RETAILER_BG_VERSION) {
+          setBgVersion(data.RETAILER_BG_VERSION);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching settings:', err);
+    }
+  };
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   useEffect(() => {
     fetchCatalog();
+
+    const interval = setInterval(() => {
+      fetchCatalog(true);
+    }, 4000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const showToast = (message) => {
@@ -30,18 +78,20 @@ export default function RetailerBrowseClient({ shopName }) {
     }, 4000);
   };
 
-  const fetchCatalog = async () => {
+  const fetchCatalog = async (silent = false) => {
     try {
       const res = await fetch('/api/retailer/browse');
       if (res.ok) {
         const data = await res.json();
         setCatalog(data);
-      } else {
+      } else if (!silent) {
         showToast('Failed to load catalogue. Please reload.');
       }
     } catch (err) {
       console.error(err);
-      showToast('Connection error. Check internet.');
+      if (!silent) {
+        showToast('Connection error. Check internet.');
+      }
     } finally {
       setLoading(false);
     }
@@ -52,6 +102,13 @@ export default function RetailerBrowseClient({ shopName }) {
     if (!selectedCompanyId) return null;
     return catalog.find(c => c.id === selectedCompanyId);
   }, [catalog, selectedCompanyId]);
+
+  const filteredStockItems = useMemo(() => {
+    if (!company?.stockItems) return [];
+    if (!debouncedSearchQuery) return company.stockItems;
+    const q = debouncedSearchQuery.toLowerCase();
+    return company.stockItems.filter(item => item.name.toLowerCase().includes(q));
+  }, [company?.stockItems, debouncedSearchQuery]);
 
   // Adjust quantity
   const handleQtyChange = (itemId, change, maxQty) => {
@@ -106,6 +163,80 @@ export default function RetailerBrowseClient({ shopName }) {
       setQuantities({ ...quantities, [itemId]: 1 });
 
       // Immediate handoff to WhatsApp
+      window.location.href = data.waUrl;
+    } catch (err) {
+      showErrorToast(err.message);
+    } finally {
+      setSubmittingItemId(null);
+    }
+  };
+
+  const addToCart = (item) => {
+    const qtySelected = quantities[item.id] || 1;
+    setCart(prevCart => {
+      const existing = prevCart.find(c => c.item.id === item.id);
+      if (existing) {
+        return prevCart.map(c => 
+          c.item.id === item.id 
+            ? { ...c, quantity: Math.min(item.quantity, c.quantity + qtySelected) }
+            : c
+        );
+      }
+      return [...prevCart, { item, quantity: qtySelected }];
+    });
+    setQuantities({ ...quantities, [item.id]: 1 });
+    showToast(`Added ${qtySelected} strips of ${item.name} to cart`);
+  };
+
+  const updateCartQuantity = (itemId, newQty, maxQty) => {
+    let val = parseInt(newQty);
+    if (isNaN(val) || val < 1) val = 1;
+    if (val > maxQty) val = maxQty;
+    setCart(prevCart => prevCart.map(c => 
+      c.item.id === itemId ? { ...c, quantity: val } : c
+    ));
+  };
+
+  const removeFromCart = (itemId) => {
+    setCart(prevCart => prevCart.filter(c => c.item.id !== itemId));
+    showToast('Item removed from cart');
+  };
+
+  const handlePlaceCartOrder = async () => {
+    if (cart.length === 0) return;
+    setSubmittingItemId('cart');
+    showToast('Submitting cart and opening WhatsApp...');
+    try {
+      const res = await fetch('/api/retailer/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          items: cart.map(c => ({ stockItemId: c.item.id, quantity: c.quantity })) 
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to place order');
+
+      setCatalog(prevCatalog => {
+        return prevCatalog.map(comp => {
+          return {
+            ...comp,
+            stockItems: comp.stockItems.map(item => {
+              const cartItem = cart.find(c => c.item.id === item.id);
+              if (cartItem) {
+                return {
+                  ...item,
+                  quantity: Math.max(0, item.quantity - cartItem.quantity)
+                };
+              }
+              return item;
+            })
+          };
+        });
+      });
+
+      setCart([]);
+      setIsCartOpen(false);
       window.location.href = data.waUrl;
     } catch (err) {
       showErrorToast(err.message);
@@ -199,14 +330,34 @@ export default function RetailerBrowseClient({ shopName }) {
             Tap the large <strong style={{ color: 'var(--primary)' }}>ORDER</strong> button to initiate WhatsApp order.
           </p>
 
+          <div style={{ marginBottom: '20px', position: 'relative' }}>
+            <input
+              type="text"
+              className="form-input"
+              style={{ width: '100%', padding: '12px 48px 12px 16px', fontSize: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', outline: 'none' }}
+              placeholder="🔍 Search medicines..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery !== debouncedSearchQuery && (
+              <div style={{ position: 'absolute', right: '16px', top: '14px', display: 'flex', alignItems: 'center' }}>
+                <span className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px', borderTopColor: 'var(--primary)', margin: 0 }}></span>
+              </div>
+            )}
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {company?.stockItems.length === 0 ? (
+            {filteredStockItems.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">📦</div>
-                <p>No products listed in this catalogue yet.</p>
+                <p>
+                  {company?.stockItems.length === 0 
+                    ? 'No products listed in this catalogue yet.' 
+                    : 'No matching medicines found.'}
+                </p>
               </div>
             ) : (
-              company?.stockItems.map((item) => {
+              filteredStockItems.map((item) => {
                 const qtySelected = quantities[item.id] || 1;
                 const isOutOfStock = item.quantity <= 0;
 
@@ -221,7 +372,7 @@ export default function RetailerBrowseClient({ shopName }) {
                         <div className="stock-title" style={{ fontSize: '19px', fontWeight: '700' }}>{item.name}</div>
                         <div className="stock-qty" style={{ marginTop: '4px' }}>
                           {isOutOfStock 
-                            ? '🚫 Out of Stock' 
+                            ? <span style={{ color: 'var(--danger)', fontWeight: '800' }}>🚫 SOLD OUT</span> 
                             : `🟢 Available Stock: ${item.quantity} strips`}
                         </div>
                       </div>
@@ -306,20 +457,158 @@ export default function RetailerBrowseClient({ shopName }) {
                           fontSize: '17px', 
                           backgroundColor: isOutOfStock ? 'var(--gray-out)' : 'var(--primary)' 
                         }}
-                        onClick={() => handlePlaceOrder(item.id)}
-                        disabled={isOutOfStock || submittingItemId === item.id}
+                        onClick={() => addToCart(item)}
+                        disabled={isOutOfStock}
                       >
                         {isOutOfStock 
-                          ? 'OUT OF STOCK (N/A)' 
-                          : submittingItemId === item.id 
-                            ? 'Processing Order...' 
-                            : `Order ${qtySelected || 1} strips via WhatsApp`}
+                          ? 'SOLD OUT' 
+                          : `Add ${qtySelected || 1} strips to Cart`}
                       </button>
                     </div>
                   </div>
                 );
               })
             )}
+          </div>
+        </div>
+      )}
+
+      {cart.length > 0 && !isCartOpen && (
+        <button 
+          onClick={() => setIsCartOpen(true)}
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            backgroundColor: 'var(--primary)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '50px',
+            padding: '16px 24px',
+            fontSize: '16px',
+            fontWeight: 'bold',
+            boxShadow: '0 8px 30px rgba(0,0,0,0.2)',
+            cursor: 'pointer',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          🛒 View Cart ({cart.reduce((sum, c) => sum + c.quantity, 0)} strips)
+        </button>
+      )}
+
+      {isCartOpen && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }}>
+          <div className="modal-content" style={{ maxWidth: '500px', width: '90%', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div className="modal-header" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+              <h2 className="modal-title" style={{ fontSize: '20px' }}>🛒 My Order Cart</h2>
+              <button className="modal-close" onClick={() => {
+                setIsCartOpen(false);
+                setQuantities({});
+              }}>×</button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {cart.map((cartItem) => (
+                <div 
+                  key={cartItem.item.id} 
+                  style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    borderBottom: '1px solid var(--border-color)', 
+                    paddingBottom: '12px' 
+                  }}
+                >
+                  <div style={{ flex: 1, paddingRight: '12px' }}>
+                    <div style={{ fontWeight: '700', fontSize: '16px' }}>{cartItem.item.name}</div>
+                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      Price: ₹{cartItem.item.price.toFixed(2)} | Subtotal: ₹{(cartItem.quantity * cartItem.item.price).toFixed(2)}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div className="qty-selector" style={{ margin: 0 }}>
+                      <button 
+                        type="button" 
+                        className="qty-btn"
+                        onClick={() => updateCartQuantity(cartItem.item.id, cartItem.quantity - 1, cartItem.item.quantity)}
+                        disabled={cartItem.quantity <= 1}
+                      >
+                        -
+                      </button>
+                      <input 
+                        type="number"
+                        value={cartItem.quantity}
+                        onChange={(e) => updateCartQuantity(cartItem.item.id, e.target.value, cartItem.item.quantity)}
+                        style={{
+                          width: '45px',
+                          textAlign: 'center',
+                          fontSize: '15px',
+                          fontWeight: '600',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: 'var(--radius-sm)',
+                          padding: '4px 0',
+                          height: '32px'
+                        }}
+                      />
+                      <button 
+                        type="button" 
+                        className="qty-btn"
+                        onClick={() => updateCartQuantity(cartItem.item.id, cartItem.quantity + 1, cartItem.item.quantity)}
+                        disabled={cartItem.quantity >= cartItem.item.quantity}
+                      >
+                        +
+                      </button>
+                    </div>
+
+                    <button 
+                      onClick={() => removeFromCart(cartItem.item.id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--danger)',
+                        fontSize: '20px',
+                        cursor: 'pointer',
+                        padding: '4px 8px'
+                      }}
+                      title="Remove item"
+                    >
+                      🗑️
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <span style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-muted)' }}>Total Billing Amount:</span>
+                <span style={{ fontSize: '22px', fontWeight: '800', color: 'var(--primary)' }}>
+                  ₹{cart.reduce((sum, c) => sum + (c.quantity * c.item.price), 0).toFixed(2)}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ flex: 1 }} 
+                  onClick={() => setIsCartOpen(false)}
+                >
+                  Add More
+                </button>
+                <button 
+                  className="btn btn-primary" 
+                  style={{ flex: 2, height: '48px' }} 
+                  disabled={submittingItemId === 'cart'}
+                  onClick={handlePlaceCartOrder}
+                >
+                  {submittingItemId === 'cart' ? 'Processing Order...' : 'Send WhatsApp Order'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

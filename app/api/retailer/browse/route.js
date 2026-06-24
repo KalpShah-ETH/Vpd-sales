@@ -16,8 +16,20 @@ export async function GET() {
   }
 
   try {
+    const whereClause = { active: true };
+
+    if (retailer) {
+      const dbRetailer = await prisma.retailer.findUnique({
+        where: { id: retailer.id },
+        select: { salesmanId: true }
+      });
+      if (dbRetailer && dbRetailer.salesmanId) {
+        whereClause.id = dbRetailer.salesmanId;
+      }
+    }
+
     const companies = await prisma.salesman.findMany({
-      where: { active: true },
+      where: whereClause,
       select: {
         id: true,
         name: true,

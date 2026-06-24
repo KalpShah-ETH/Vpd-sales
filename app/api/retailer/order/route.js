@@ -12,10 +12,24 @@ export async function POST(request) {
   }
 
   try {
-    const { stockItemId, quantity } = await request.json();
+    const body = await request.json();
+    let orderItems = [];
 
-    if (!stockItemId || !quantity || quantity <= 0) {
-      return NextResponse.json({ error: 'Invalid stock item or quantity' }, { status: 400 });
+    // Support both bulk { items: [...] } and legacy single { stockItemId, quantity }
+    if (body.items && Array.isArray(body.items)) {
+      orderItems = body.items;
+    } else {
+      orderItems = [{ stockItemId: body.stockItemId, quantity: body.quantity }];
+    }
+
+    if (orderItems.length === 0) {
+      return NextResponse.json({ error: 'No items in order' }, { status: 400 });
+    }
+
+    for (const entry of orderItems) {
+      if (!entry.stockItemId || !entry.quantity || entry.quantity <= 0) {
+        return NextResponse.json({ error: 'Invalid item or quantity in order' }, { status: 400 });
+      }
     }
 
     // Verify retailer is active in DB
@@ -29,72 +43,83 @@ export async function POST(request) {
 
     // Retrieve and update within transaction to prevent race conditions
     const transactionResult = await prisma.$transaction(async (tx) => {
-      // Retrieve stock item with salesman details
-      const stockItem = await tx.stockItem.findUnique({
-        where: { id: parseInt(stockItemId) },
-        include: {
-          salesman: true
-        }
-      });
+      const orderResults = [];
+      let salesman = null;
 
-      if (!stockItem || !stockItem.salesman || !stockItem.salesman.active) {
-        throw { status: 404, error: 'Product or company is currently unavailable' };
-      }
-
-      if (stockItem.quantity <= 0) {
-        throw { status: 400, error: 'Product is out of stock' };
-      }
-
-      const orderQty = Math.min(quantity, stockItem.quantity);
-
-      // Update stock item quantity in DB (decrement)
-      const updatedStockItem = await tx.stockItem.update({
-        where: { id: stockItem.id },
-        data: {
-          quantity: {
-            decrement: orderQty
+      for (const entry of orderItems) {
+        const stockItem = await tx.stockItem.findUnique({
+          where: { id: parseInt(entry.stockItemId) },
+          include: {
+            salesman: true
           }
-        }
-      });
+        });
 
-      // If quantity drops below 0, it means another concurrent request got it first
-      if (updatedStockItem.quantity < 0) {
-        throw { status: 400, error: 'Product is out of stock' };
+        if (!stockItem || !stockItem.salesman || !stockItem.salesman.active) {
+          throw { status: 404, error: `Product "${stockItem?.name || 'Unknown'}" or company is currently unavailable` };
+        }
+
+        if (stockItem.quantity < entry.quantity) {
+          throw { status: 400, error: `Product "${stockItem.name}" does not have enough stock. Available: ${stockItem.quantity}` };
+        }
+
+        salesman = stockItem.salesman;
+
+        // Update stock item quantity in DB (decrement)
+        const updatedStockItem = await tx.stockItem.update({
+          where: { id: stockItem.id },
+          data: {
+            quantity: {
+              decrement: entry.quantity
+            }
+          }
+        });
+
+        // If quantity drops below 0, it means another concurrent request got it first
+        if (updatedStockItem.quantity < 0) {
+          throw { status: 400, error: `Product "${stockItem.name}" is out of stock` };
+        }
+
+        // Save order in database
+        const order = await tx.order.create({
+          data: {
+            retailerId: dbRetailer.id,
+            salesmanId: stockItem.salesman.id,
+            productName: stockItem.name,
+            quantity: entry.quantity,
+            price: stockItem.price,
+            status: 'PENDING'
+          }
+        });
+
+        orderResults.push({ order, stockItem, qty: entry.quantity });
       }
 
-      // Save order in database
-      const order = await tx.order.create({
-        data: {
-          retailerId: dbRetailer.id,
-          salesmanId: stockItem.salesman.id,
-          productName: stockItem.name,
-          quantity: orderQty,
-          price: stockItem.price,
-          status: 'PENDING'
-        }
-      });
-
-      return { order, orderQty, stockItem };
+      return { orderResults, salesman };
     });
 
-    const { order, orderQty, stockItem } = transactionResult;
+    const { orderResults, salesman } = transactionResult;
 
     // Normalize salesman's phone number for WhatsApp
-    // Needs to be in format 91XXXXXXXXXX (e.g. without spaces, dashes, +, and prepend 91 for India if only 10 digits)
-    let cleanPhone = stockItem.salesman.phone.replace(/\D/g, '');
+    let cleanPhone = salesman.phone.replace(/\D/g, '');
     if (cleanPhone.length === 10) {
       cleanPhone = '91' + cleanPhone;
     }
 
     // Construct pre-filled WhatsApp message
-    const message = `Hello, I am ${dbRetailer.shopName}.\nI want to order ${orderQty} strips of ${stockItem.name} from ${stockItem.salesman.companyName}.\nPlease confirm and deliver.`;
-    
+    let message = `Hello, I am ${dbRetailer.shopName}.\nI want to order the following items from ${salesman.companyName}:\n`;
+    let total = 0;
+    for (const res of orderResults) {
+      const subtotal = res.qty * res.stockItem.price;
+      total += subtotal;
+      message += `- *${res.stockItem.name}* x ${res.qty} strips (₹${res.stockItem.price.toFixed(2)}/strip)\n`;
+    }
+    message += `\n*Total Order Value:* ₹${total.toFixed(2)}\n\nPlease confirm and deliver.`;
+
     // Construct the wa.me pre-filled link
     const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
 
     return NextResponse.json({
       success: true,
-      orderId: order.id,
       waUrl
     });
   } catch (error) {

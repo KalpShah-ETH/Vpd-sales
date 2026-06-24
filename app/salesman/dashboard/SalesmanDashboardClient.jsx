@@ -11,6 +11,9 @@ export default function SalesmanDashboardClient({ salesman }) {
   const [stockItems, setStockItems] = useState([]);
   const [orders, setOrders] = useState([]);
   const [catalog, setCatalog] = useState([]); // for previewing other companies
+  const [retailers, setRetailers] = useState([]);
+  const [retailerForm, setRetailerForm] = useState({ shopName: '', phone: '' });
+  const [retailerLoading, setRetailerLoading] = useState(false);
   
   // UI state
   const [loading, setLoading] = useState(false);
@@ -46,6 +49,10 @@ export default function SalesmanDashboardClient({ salesman }) {
 
   // Modals state
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const [csvItems, setCsvItems] = useState([]);
+  const [csvFileName, setCsvFileName] = useState('');
+  const [csvUploadLoading, setCsvUploadLoading] = useState(false);
   const [editingItem, setEditingItem] = useState(null); // null means adding
   const [stockForm, setStockForm] = useState({
     name: '',
@@ -62,7 +69,50 @@ export default function SalesmanDashboardClient({ salesman }) {
     fetchStock();
     fetchOrders();
     fetchCatalog();
+    fetchRetailers();
+
+    const interval = setInterval(() => {
+      fetchStock();
+      fetchOrders();
+      fetchRetailers();
+    }, 4000);
+
+    return () => clearInterval(interval);
   }, []);
+
+  const fetchRetailers = async () => {
+    try {
+      const res = await fetch('/api/salesman/retailers');
+      if (res.ok) {
+        const data = await res.json();
+        setRetailers(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRetailerSubmit = async (e) => {
+    e.preventDefault();
+    setRetailerLoading(true);
+    try {
+      const res = await fetch('/api/salesman/retailers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(retailerForm)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create retailer');
+
+      showToast('Retailer account created successfully!');
+      setRetailerForm({ shopName: '', phone: '' });
+      fetchRetailers();
+    } catch (err) {
+      showErrorToast(err.message);
+    } finally {
+      setRetailerLoading(false);
+    }
+  };
 
   const showToast = (message) => {
     setToast({ visible: true, message, isError: false });
@@ -209,6 +259,107 @@ export default function SalesmanDashboardClient({ salesman }) {
     }
   };
 
+  const handleCsvFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setCsvFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target.result;
+      const parsed = parseCsvContent(text);
+      setCsvItems(parsed);
+    };
+    reader.readAsText(file);
+  };
+
+  const parseCsvContent = (text) => {
+    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line !== '');
+    if (lines.length === 0) return [];
+
+    const parsedLines = lines.map(line => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"' || char === "'") {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    });
+
+    if (parsedLines.length === 0) return [];
+
+    const firstRow = parsedLines[0];
+    const hasHeaders = firstRow.some(cell => {
+      const c = cell.toLowerCase();
+      return c.includes('name') || c.includes('price') || c.includes('qty') || c.includes('quantity') || c.includes('stock');
+    });
+
+    let nameIdx = 0, priceIdx = 1, qtyIdx = 2;
+    let startIndex = 0;
+
+    if (hasHeaders) {
+      startIndex = 1;
+      firstRow.forEach((cell, idx) => {
+        const c = cell.toLowerCase();
+        if (c.includes('name') || c.includes('medicine') || c.includes('product') || c.includes('description')) {
+          nameIdx = idx;
+        } else if (c.includes('price') || c.includes('rate') || c.includes('cost') || c.includes('mrp')) {
+          priceIdx = idx;
+        } else if (c.includes('qty') || c.includes('quantity') || c.includes('stock') || c.includes('units') || c.includes('count')) {
+          qtyIdx = idx;
+        }
+      });
+    }
+
+    const items = [];
+    for (let i = startIndex; i < parsedLines.length; i++) {
+      const row = parsedLines[i];
+      if (row.length <= Math.max(nameIdx, priceIdx, qtyIdx)) continue;
+      const name = row[nameIdx];
+      const price = parseFloat(row[priceIdx]);
+      const quantity = parseInt(row[qtyIdx]);
+      if (name && !isNaN(price) && !isNaN(quantity)) {
+        items.push({ name, price, quantity });
+      }
+    }
+    return items;
+  };
+
+  const handleCsvUploadSubmit = async () => {
+    if (csvItems.length === 0) return;
+    setCsvUploadLoading(true);
+    try {
+      const res = await fetch('/api/salesman/stock/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: csvItems })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to upload CSV');
+
+      showToast(`Uploaded successfully! Added ${data.inserted} new medicines, skipped ${data.skipped} duplicates.`);
+      setIsCsvModalOpen(false);
+      setCsvItems([]);
+      setCsvFileName('');
+      fetchStock();
+      fetchCatalog();
+    } catch (err) {
+      showErrorToast(err.message);
+    } finally {
+      setCsvUploadLoading(false);
+    }
+  };
+
   const openAddStockModal = () => {
     setEditingItem(null);
     setStockForm({ name: '', price: '', quantity: '' });
@@ -329,6 +480,17 @@ export default function SalesmanDashboardClient({ salesman }) {
               👀 Browse Catalogues
             </button>
           </li>
+          <li>
+            <button 
+              className={`sidebar-link ${activeTab === 'retailers' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('retailers');
+                setIsSidebarOpen(false);
+              }}
+            >
+              👥 Retailer Directory
+            </button>
+          </li>
           <li style={{ marginTop: 'auto' }}>
             <button 
               className="sidebar-link" 
@@ -361,9 +523,14 @@ export default function SalesmanDashboardClient({ salesman }) {
                 <h1 className="dashboard-title">My Stock Catalogue</h1>
                 <p style={{ color: 'var(--text-muted)' }}>Manage products listed for {salesman.companyName}. Updates take effect instantly.</p>
               </div>
-              <button className="btn btn-primary" onClick={openAddStockModal}>
-                ➕ Add Product
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn btn-secondary" onClick={() => setIsCsvModalOpen(true)}>
+                  📄 Upload CSV
+                </button>
+                <button className="btn btn-primary" onClick={openAddStockModal}>
+                  ➕ Add Product
+                </button>
+              </div>
             </div>
 
             {/* Search filter */}
@@ -619,6 +786,135 @@ export default function SalesmanDashboardClient({ salesman }) {
           </div>
         )}
 
+        {/* TAB 4: Retailer Directory */}
+        {activeTab === 'retailers' && (
+          <div>
+            <div className="dashboard-header">
+              <div>
+                <h1 className="dashboard-title">Retailer Directory</h1>
+                <p style={{ color: 'var(--text-muted)' }}>Manage your assigned retailers, generate direct login links, and send invitations via WhatsApp.</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', marginTop: '16px' }}>
+              {/* Form to Add Retailer */}
+              <div className="card" style={{ padding: '20px', height: 'fit-content' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>Add New Retailer</h2>
+                <form onSubmit={handleRetailerSubmit}>
+                  <div className="form-group">
+                    <label className="form-label">Shop Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      required
+                      value={retailerForm.shopName}
+                      onChange={(e) => setRetailerForm({ ...retailerForm, shopName: e.target.value })}
+                      placeholder="e.g. Apollo Pharmacy, Sector 15"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">WhatsApp Number</label>
+                    <input
+                      type="tel"
+                      className="form-input"
+                      required
+                      value={retailerForm.phone}
+                      onChange={(e) => setRetailerForm({ ...retailerForm, phone: e.target.value })}
+                      placeholder="e.g. 9876543210 (10 digits)"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary btn-full" 
+                    disabled={retailerLoading}
+                    style={{ marginTop: '16px' }}
+                  >
+                    {retailerLoading ? 'Creating...' : 'Create Retailer & Link'}
+                  </button>
+                </form>
+              </div>
+
+              {/* List of Retailers */}
+              <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '16px' }}>My Assigned Retailers</h2>
+                {retailers.length === 0 ? (
+                  <div className="empty-state" style={{ padding: '32px 0' }}>
+                    <div className="empty-icon">👥</div>
+                    <p>No retailers registered yet.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '500px', overflowY: 'auto', paddingRight: '4px' }}>
+                    {retailers.map((retailer) => {
+                      const loginLink = typeof window !== 'undefined' ? `${window.location.origin}/r/${retailer.token}` : '';
+                      let cleanPhone = retailer.phone.replace(/\D/g, '');
+                      if (cleanPhone.length === 10) {
+                        cleanPhone = '91' + cleanPhone;
+                      }
+                      const message = `Hello, this is ${salesman.name} representing ${salesman.companyName}. Here is your direct link to view our catalog and place orders: ${loginLink}`;
+                      const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+
+                      return (
+                        <div 
+                          key={retailer.id} 
+                          style={{ 
+                            border: '1px solid var(--border-color)', 
+                            borderRadius: 'var(--radius-md)', 
+                            padding: '16px',
+                            backgroundColor: 'var(--bg-primary)'
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <div style={{ fontWeight: '700', fontSize: '16px' }}>{retailer.shopName}</div>
+                            <span className={`badge ${retailer.active ? 'badge-success' : 'badge-neutral'}`}>
+                              {retailer.active ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                            📞 WhatsApp: {retailer.phone}
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <button
+                              className="btn btn-secondary"
+                              style={{ flex: 1, minWidth: '100px', fontSize: '13px', padding: '8px 12px' }}
+                              onClick={() => {
+                                navigator.clipboard.writeText(loginLink);
+                                showToast('Copied to clipboard!');
+                              }}
+                            >
+                              📋 Copy Link
+                            </button>
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-primary"
+                              style={{ 
+                                flex: 1, 
+                                minWidth: '120px', 
+                                fontSize: '13px', 
+                                padding: '8px 12px', 
+                                display: 'inline-flex', 
+                                justifyContent: 'center', 
+                                alignItems: 'center',
+                                textDecoration: 'none'
+                              }}
+                            >
+                              💬 Send via WhatsApp
+                            </a>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* MODAL: Stock Add/Edit */}
@@ -681,6 +977,120 @@ export default function SalesmanDashboardClient({ salesman }) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CSV Upload */}
+      {isCsvModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Bulk Upload Medicines (CSV)</h2>
+              <button 
+                className="modal-close" 
+                onClick={() => {
+                  setIsCsvModalOpen(false);
+                  setCsvItems([]);
+                  setCsvFileName('');
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{ padding: '8px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '16px', lineHeight: '1.5' }}>
+                Upload a CSV file containing your stock catalog. The system will look for column headers like <strong>Name</strong>, <strong>Price</strong>, and <strong>Quantity</strong>. 
+                If headers are missing, we default to: Column 1 = Name, Column 2 = Price, Column 3 = Quantity. Duplicates will be skipped automatically.
+              </p>
+              
+              <div className="form-group" style={{ border: '2px dashed var(--border-color)', padding: '24px', borderRadius: 'var(--radius-md)', textAlign: 'center', backgroundColor: 'var(--bg-primary)', marginBottom: '16px' }}>
+                <input
+                  type="file"
+                  id="csv-file-input"
+                  accept=".csv"
+                  onChange={handleCsvFileChange}
+                  style={{ display: 'none' }}
+                />
+                <label 
+                  htmlFor="csv-file-input" 
+                  style={{ cursor: 'pointer', display: 'block', fontWeight: '600', color: 'var(--primary)' }}
+                >
+                  {csvFileName ? `📄 Selected: ${csvFileName}` : '📂 Click to choose a CSV file'}
+                </label>
+                {csvFileName && (
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    Click again to change file
+                  </p>
+                )}
+              </div>
+
+              {csvItems.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                    Parsed Preview ({csvItems.length} items found)
+                  </h3>
+                  <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '8px', backgroundColor: 'var(--bg-primary)' }}>
+                    <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', fontWeight: '700' }}>
+                          <th style={{ padding: '6px' }}>Medicine Name</th>
+                          <th style={{ padding: '6px' }}>Price</th>
+                          <th style={{ padding: '6px' }}>Quantity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvItems.slice(0, 10).map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '6px', fontWeight: '500' }}>{item.name}</td>
+                            <td style={{ padding: '6px' }}>₹{item.price.toFixed(2)}</td>
+                            <td style={{ padding: '6px' }}>{item.quantity}</td>
+                          </tr>
+                        ))}
+                        {csvItems.length > 10 && (
+                          <tr>
+                            <td colSpan="3" style={{ padding: '6px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                              ... and {csvItems.length - 10} more items
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setIsCsvModalOpen(false);
+                  setCsvItems([]);
+                  setCsvFileName('');
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                disabled={csvItems.length === 0 || csvUploadLoading}
+                onClick={handleCsvUploadSubmit}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                {csvUploadLoading ? (
+                  <>
+                    <span className="spinner" style={{ width: '18px', height: '18px', borderWidth: '2px', borderTopColor: '#ffffff', margin: 0 }}></span>
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  `Upload ${csvItems.length} Products`
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

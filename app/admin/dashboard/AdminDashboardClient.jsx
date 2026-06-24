@@ -14,6 +14,9 @@ export default function AdminDashboardClient() {
   const [stats, setStats] = useState({ totalOrders: 0, pendingOrders: 0, fulfilledOrders: 0 });
   const [catalog, setCatalog] = useState([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
+  const [bgFile, setBgFile] = useState(null);
+  const [bgUploadLoading, setBgUploadLoading] = useState(false);
+  const [bgUploadStatus, setBgUploadStatus] = useState('');
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -174,6 +177,34 @@ export default function AdminDashboardClient() {
     } catch (err) {
       console.error('Logout error:', err);
       showErrorToast('Logout failed');
+    }
+  };
+
+  const handleBgUpload = async (e) => {
+    e.preventDefault();
+    if (!bgFile) return;
+    setBgUploadLoading(true);
+    setBgUploadStatus('');
+    try {
+      const formData = new FormData();
+      formData.append('file', bgFile);
+
+      const res = await fetch('/api/admin/background', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to upload background image');
+
+      showToast('Background image updated successfully!');
+      setBgUploadStatus('Upload successful!');
+      setBgFile(null);
+    } catch (err) {
+      showErrorToast(err.message);
+      setBgUploadStatus(`Error: ${err.message}`);
+    } finally {
+      setBgUploadLoading(false);
     }
   };
 
@@ -542,6 +573,17 @@ export default function AdminDashboardClient() {
               }}
             >
               👀 Retailer View Preview
+            </button>
+          </li>
+          <li>
+            <button 
+              className={`sidebar-link ${activeTab === 'settings' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('settings');
+                setIsSidebarOpen(false);
+              }}
+            >
+              ⚙️ Settings
             </button>
           </li>
           <li style={{ marginTop: 'auto' }}>
@@ -986,6 +1028,61 @@ export default function AdminDashboardClient() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 5: Global Settings */}
+        {activeTab === 'settings' && (
+          <div>
+            <div className="dashboard-header">
+              <div>
+                <h1 className="dashboard-title">Global Settings</h1>
+                <p style={{ color: 'var(--text-muted)' }}>Configure platform-wide preferences and styles.</p>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', marginTop: '16px' }}>
+              <div className="card" style={{ padding: '24px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '12px' }}>Retailer Browse Background Image</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px', lineHeight: '1.5' }}>
+                  Upload a background image that will appear across the retailer browsing dashboard for all shops. Highly recommended to use a clean, professional, and optimized image.
+                </p>
+
+                <form onSubmit={handleBgUpload}>
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={(e) => setBgFile(e.target.files[0])} 
+                      className="form-input" 
+                      style={{ padding: '8px' }}
+                    />
+                  </div>
+
+                  {bgFile && (
+                    <div style={{ marginBottom: '16px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '8px', textAlign: 'center', backgroundColor: 'var(--bg-primary)' }}>
+                      <span style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-muted)' }}>
+                        Selected: {bgFile.name} ({(bgFile.size / 1024 / 1024).toFixed(2)} MB)
+                      </span>
+                    </div>
+                  )}
+
+                  {bgUploadStatus && (
+                    <div style={{ marginBottom: '16px', fontSize: '14px', fontWeight: '600', color: bgUploadStatus.includes('Error') ? 'var(--danger)' : 'var(--success)' }}>
+                      {bgUploadStatus}
+                    </div>
+                  )}
+
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary btn-full" 
+                    disabled={!bgFile || bgUploadLoading}
+                  >
+                    {bgUploadLoading ? 'Uploading...' : 'Save & Publish Image'}
+                  </button>
+                </form>
+              </div>
+            </div>
           </div>
         )}
       </main>

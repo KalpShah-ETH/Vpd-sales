@@ -411,9 +411,6 @@ export default function RetailerBrowseClient({ shopName }) {
                           )}
                         </div>
                       </div>
-                      <div className="stock-price" style={{ fontSize: '20px' }}>
-                        ₹{item.price.toFixed(2)}
-                      </div>
                     </div>
 
                     {!isOutOfStock && (
@@ -587,9 +584,6 @@ export default function RetailerBrowseClient({ shopName }) {
                 >
                   <div style={{ flex: 1, paddingRight: '12px' }}>
                     <div style={{ fontWeight: '700', fontSize: '16px' }}>{cartItem.item.name}</div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      Price: ₹{cartItem.item.price.toFixed(2)} | Subtotal: ₹{(cartItem.quantity * cartItem.item.price).toFixed(2)}
-                    </div>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -647,12 +641,6 @@ export default function RetailerBrowseClient({ shopName }) {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px', marginTop: 'auto' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <span style={{ fontSize: '16px', fontWeight: '700', color: 'var(--text-muted)' }}>Total Billing Amount:</span>
-                <span style={{ fontSize: '22px', fontWeight: '800', color: 'var(--primary)' }}>
-                  ₹{cart.reduce((sum, c) => sum + (c.quantity * c.item.price), 0).toFixed(2)}
-                </span>
-              </div>
 
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button 

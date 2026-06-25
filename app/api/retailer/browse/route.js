@@ -73,16 +73,27 @@ export async function GET() {
       }
     });
 
+    const getUniquenessKey = (name, mfg, pack) => {
+      const cleanName = (name || '').trim().toLowerCase();
+      const cleanMfg = (mfg || '').trim().toLowerCase();
+      const cleanPack = (pack || '').trim().toLowerCase();
+      return `${cleanName}|${cleanMfg}|${cleanPack}`;
+    };
+
     const globalItems = (globalSalesman?.stockItems || []).map(item => ({
       ...item,
       isAdminGlobal: true
     }));
 
-    // Merge the global items into each company's stock list
-    const mergedCompanies = companies.map(company => ({
-      ...company,
-      stockItems: [...company.stockItems, ...globalItems].sort((a, b) => a.name.localeCompare(b.name))
-    }));
+    // Merge the global items into each company's stock list, skipping overlapping items
+    const mergedCompanies = companies.map(company => {
+      const ownKeys = new Set(company.stockItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
+      const filteredGlobalItems = globalItems.filter(item => !ownKeys.has(getUniquenessKey(item.name, item.mfg, item.pack)));
+      return {
+        ...company,
+        stockItems: [...company.stockItems, ...filteredGlobalItems].sort((a, b) => a.name.localeCompare(b.name))
+      };
+    });
 
     return NextResponse.json(mergedCompanies);
   } catch (error) {

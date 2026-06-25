@@ -30,9 +30,19 @@ export async function GET() {
       orderBy: { name: 'asc' }
     }) : [];
 
+    const getUniquenessKey = (name, mfg, pack) => {
+      const cleanName = (name || '').trim().toLowerCase();
+      const cleanMfg = (mfg || '').trim().toLowerCase();
+      const cleanPack = (pack || '').trim().toLowerCase();
+      return `${cleanName}|${cleanMfg}|${cleanPack}`;
+    };
+
+    const ownKeys = new Set(ownItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
+    const filteredGlobalItems = globalItems.filter(item => !ownKeys.has(getUniquenessKey(item.name, item.mfg, item.pack)));
+
     const merged = [
       ...ownItems.map(item => ({ ...item, isAdminGlobal: false })),
-      ...globalItems.map(item => ({ ...item, isAdminGlobal: true }))
+      ...filteredGlobalItems.map(item => ({ ...item, isAdminGlobal: true }))
     ].sort((a, b) => a.name.localeCompare(b.name));
 
     return NextResponse.json(merged);

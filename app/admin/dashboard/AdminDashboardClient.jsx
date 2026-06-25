@@ -1091,8 +1091,6 @@ export default function AdminDashboardClient() {
                       <th>Retailer (Shop Name)</th>
                       <th>Pharma Company</th>
                       <th>Product Ordered</th>
-                      <th>Qty × Price per Strip</th>
-                      <th>Total Billing</th>
                       <th>Routing Status</th>
                       <th>Timestamp</th>
                     </tr>
@@ -1113,10 +1111,6 @@ export default function AdminDashboardClient() {
                           </span>
                         </td>
                         <td>{order.productName}</td>
-                        <td>{order.quantity} strips × ₹{order.price.toFixed(2)}</td>
-                        <td style={{ fontWeight: '700', color: 'var(--primary)' }}>
-                          ₹{(order.quantity * order.price).toFixed(2)}
-                        </td>
                         <td>
                           <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
                             {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
@@ -1200,7 +1194,6 @@ export default function AdminDashboardClient() {
                               {item.quantity > 0 ? `Stock: ${item.quantity} strips available` : 'Product Out of Stock'}
                             </div>
                           </div>
-                          <div className="stock-price">₹{item.price.toFixed(2)}</div>
                         </div>
                         <div className="stock-actions" style={{ marginTop: '8px' }}>
                           <span className="badge badge-neutral" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px', borderRadius: 'var(--radius-sm)' }}>

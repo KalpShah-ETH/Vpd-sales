@@ -721,10 +721,6 @@ export default function SalesmanDashboardClient({ salesman }) {
                 <div className="stat-title">Pending Fulfillment</div>
                 <div className="stat-value" style={{ color: 'var(--warning)' }}>{orderStats.pending}</div>
               </div>
-              <div className="stat-card">
-                <div className="stat-title">Fulfilled Billing Value</div>
-                <div className="stat-value" style={{ color: 'var(--success)' }}>₹{orderStats.billing.toFixed(2)}</div>
-              </div>
             </div>
 
             {/* Search and status filters */}
@@ -763,7 +759,6 @@ export default function SalesmanDashboardClient({ salesman }) {
                       <th>Retailer Shop</th>
                       <th>Product</th>
                       <th>Quantity</th>
-                      <th>Billing Total</th>
                       <th>WhatsApp Delivery Status</th>
                       <th>Received At</th>
                       <th>Action</th>
@@ -781,9 +776,6 @@ export default function SalesmanDashboardClient({ salesman }) {
                         </td>
                         <td>{order.productName}</td>
                         <td>{order.quantity} strips</td>
-                        <td style={{ fontWeight: '700', color: 'var(--primary)' }}>
-                          ₹{(order.quantity * order.price).toFixed(2)}
-                        </td>
                         <td>
                           <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
                             {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
@@ -918,7 +910,6 @@ export default function SalesmanDashboardClient({ salesman }) {
                               )}
                             </div>
                           </div>
-                          <div className="stock-price">₹{item.price.toFixed(2)}</div>
                         </div>
                         <div className="stock-actions" style={{ marginTop: '8px' }}>
                           <span className="badge badge-neutral" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px', borderRadius: 'var(--radius-sm)' }}>
@@ -1115,19 +1106,6 @@ export default function SalesmanDashboardClient({ salesman }) {
                   value={stockForm.name}
                   onChange={(e) => setStockForm({ ...stockForm, name: e.target.value })}
                   placeholder="e.g. Paracetamol 500mg (Box of 100)"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Price per Strip (₹)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.00"
-                  className="form-input"
-                  value={stockForm.price}
-                  onChange={(e) => setStockForm({ ...stockForm, price: e.target.value })}
-                  placeholder="e.g. 150.00 (optional)"
                 />
               </div>
 

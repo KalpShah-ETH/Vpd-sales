@@ -183,9 +183,15 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Retailer ID is required' }, { status: 400 });
     }
 
-    await prisma.retailer.delete({
-      where: { id: parseInt(id) }
-    });
+    try {
+      await prisma.retailer.delete({
+        where: { id: parseInt(id) }
+      });
+    } catch (dbErr) {
+      if (dbErr.code !== 'P2025') {
+        throw dbErr;
+      }
+    }
 
     return NextResponse.json({ success: true, message: 'Retailer deleted successfully' });
   } catch (error) {

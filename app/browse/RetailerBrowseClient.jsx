@@ -17,7 +17,32 @@ export default function RetailerBrowseClient({ shopName }) {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [bgVersion, setBgVersion] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [companyLoadingId, setCompanyLoadingId] = useState(null);
   const ITEMS_PER_PAGE = 50;
+
+  const handleSelectCompany = async (companyId) => {
+    if (companyLoadingId) return;
+    setCompanyLoadingId(companyId);
+    try {
+      const res = await fetch(`/api/retailer/browse?companyId=${companyId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
+        setSelectedCompanyId(companyId);
+        setSearchQuery('');
+        setDebouncedSearchQuery('');
+        setCurrentPage(1);
+        window.scrollTo(0, 0);
+      } else {
+        showToast('Failed to load company catalogue');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error connecting to database');
+    } finally {
+      setCompanyLoadingId(null);
+    }
+  };
 
   useEffect(() => {
     fetchSettings();
@@ -296,18 +321,15 @@ export default function RetailerBrowseClient({ shopName }) {
               catalog.map((company, index) => {
                 const initials = company.companyName.substring(0, 2).toUpperCase();
                 const color = avatarColors[company.id % avatarColors.length];
+                const isLoading = companyLoadingId === company.id;
 
                 return (
                   <button 
                     key={company.id} 
                     className="company-card"
-                    onClick={() => {
-                      setSelectedCompanyId(company.id);
-                      setSearchQuery('');
-                      setDebouncedSearchQuery('');
-                      setCurrentPage(1);
-                      window.scrollTo(0, 0);
-                    }}
+                    onClick={() => handleSelectCompany(company.id)}
+                    disabled={companyLoadingId !== null}
+                    style={companyLoadingId !== null && !isLoading ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
                   >
                     <div className="avatar" style={{ backgroundColor: color }}>
                       {initials}
@@ -315,11 +337,15 @@ export default function RetailerBrowseClient({ shopName }) {
                     <div className="company-info">
                       <div className="company-name">{company.companyName}</div>
                       <div className="company-meta">
-                        {company.stockItems.filter(i => i.quantity > 0).length} items in stock
+                        {company.stockItemsCount !== undefined ? company.stockItemsCount : (company.stockItems?.filter(i => i.quantity > 0).length || 0)} items in stock
                       </div>
                     </div>
-                    <div style={{ marginLeft: 'auto', fontSize: '24px', color: 'var(--primary)', fontWeight: 'bold' }}>
-                      →
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+                      {isLoading ? (
+                        <div className="spinner" style={{ width: '24px', height: '24px', borderWidth: '3px', borderTopColor: 'var(--primary)', margin: 0 }}></div>
+                      ) : (
+                        <div style={{ fontSize: '24px', color: 'var(--primary)', fontWeight: 'bold' }}>→</div>
+                      )}
                     </div>
                   </button>
                 );

@@ -27,6 +27,30 @@ export default function SalesmanDashboardClient({ salesman }) {
   const [previewPage, setPreviewPage] = useState(1);
   const [orderStatusFilter, setOrderStatusFilter] = useState('ALL'); // ALL, PENDING, FULFILLED
   const [submittingId, setSubmittingId] = useState(null);
+  const [companyLoadingId, setCompanyLoadingId] = useState(null);
+
+  const handleSelectCompany = async (companyId) => {
+    if (companyLoadingId) return;
+    setCompanyLoadingId(companyId);
+    try {
+      const res = await fetch(`/api/retailer/browse?companyId=${companyId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
+        setSelectedCompanyId(companyId);
+        setSearchQuery('');
+        setPreviewPage(1);
+        window.scrollTo(0, 0);
+      } else {
+        showToast('Failed to load company catalogue');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error connecting to database');
+    } finally {
+      setCompanyLoadingId(null);
+    }
+  };
 
   // Custom Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState({
@@ -609,7 +633,7 @@ export default function SalesmanDashboardClient({ salesman }) {
               />
             </div>
 
-            <div className="table-container">
+            <div className="table-container" style={{ paddingBottom: stockTotalPages > 1 ? '80px' : '0px' }}>
               {filteredStock.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">📦</div>
@@ -617,68 +641,110 @@ export default function SalesmanDashboardClient({ salesman }) {
                   {!stockSearchQuery && <button className="btn btn-secondary" onClick={openAddStockModal}>Add Your First Product</button>}
                 </div>
               ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Product Name</th>
-                      <th>Mfg</th>
-                      <th>Qty.</th>
-                      <th>Pack</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                     {paginatedStock.map((item) => (
-                      <tr key={item.id} className={item.quantity === 0 ? 'out-of-stock' : ''} style={item.quantity === 0 ? { opacity: 0.6 } : {}}>
-                        <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                            <div style={{ fontWeight: '600', fontSize: '16px' }}>{item.name}</div>
-                            {item.isAdminGlobal && (
-                              <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
-                                🌐 Shared Stock
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td style={{ fontWeight: '600', color: 'var(--text-muted)' }}>{item.mfg || '-'}</td>
-                        <td style={{ fontWeight: '600' }}>{item.quantity} strips</td>
-                        <td>
-                          <span className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
-                            {item.pack || '-'}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button 
-                              className="btn btn-secondary" 
-                              style={{ padding: '0 10px', fontSize: '14px' }} 
-                              disabled={submittingId === item.id || item.isAdminGlobal} 
-                              onClick={() => openEditStockModal(item)}
-                              title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
-                            >
-                              Edit Stock/Price
-                            </button>
-                            <button 
-                              className="btn btn-danger" 
-                              style={{ padding: '0 10px', fontSize: '14px' }} 
-                              disabled={submittingId === item.id || item.isAdminGlobal} 
-                              onClick={() => handleDeleteStock(item.id)}
-                              title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
-                            >
-                              {submittingId === item.id ? 'Removing...' : 'Delete'}
-                            </button>
-                          </div>
-                        </td>
+                <>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Product Name</th>
+                        <th>Mfg</th>
+                        <th>Qty.</th>
+                        <th>Pack</th>
+                        <th>Actions</th>
                       </tr>
+                    </thead>
+                    <tbody>
+                       {paginatedStock.map((item) => (
+                        <tr key={item.id} className={item.quantity === 0 ? 'out-of-stock' : ''} style={item.quantity === 0 ? { opacity: 0.6 } : {}}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <div style={{ fontWeight: '600', fontSize: '16px' }}>{item.name}</div>
+                              {item.isAdminGlobal && (
+                                <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                                  🌐 Shared Stock
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ fontWeight: '600', color: 'var(--text-muted)' }}>{item.mfg || '-'}</td>
+                          <td style={{ fontWeight: '600' }}>{item.quantity} strips</td>
+                          <td>
+                            <span className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
+                              {item.pack || '-'}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0 10px', fontSize: '14px' }} 
+                                disabled={submittingId === item.id || item.isAdminGlobal} 
+                                onClick={() => openEditStockModal(item)}
+                                title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
+                              >
+                                Edit Stock/Price
+                              </button>
+                              <button 
+                                className="btn btn-danger" 
+                                style={{ padding: '0 10px', fontSize: '14px' }} 
+                                disabled={submittingId === item.id || item.isAdminGlobal} 
+                                onClick={() => handleDeleteStock(item.id)}
+                                title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
+                              >
+                                {submittingId === item.id ? 'Removing...' : 'Delete'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="mobile-card-list">
+                    {paginatedStock.map((item) => (
+                      <div key={item.id} className={`mobile-card ${item.quantity === 0 ? 'out-of-stock' : ''}`} style={item.quantity === 0 ? { opacity: 0.6 } : {}}>
+                        <div className="mobile-card-header">
+                          <span style={{ fontWeight: '700', fontSize: '16px' }}>{item.name}</span>
+                          {item.isAdminGlobal && (
+                            <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                              🌐 Shared Stock
+                            </span>
+                          )}
+                        </div>
+                        <div className="mobile-card-body">
+                          <div><strong>Mfg:</strong> {item.mfg || '-'}</div>
+                          <div><strong>Quantity:</strong> {item.quantity} strips</div>
+                          <div><strong>Pack:</strong> {item.pack || '-'}</div>
+                        </div>
+                        <div className="mobile-card-actions">
+                          <button 
+                            className="btn btn-secondary" 
+                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            disabled={submittingId === item.id || item.isAdminGlobal} 
+                            onClick={() => openEditStockModal(item)}
+                            title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            className="btn btn-danger" 
+                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            disabled={submittingId === item.id || item.isAdminGlobal} 
+                            onClick={() => handleDeleteStock(item.id)}
+                            title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
+                          >
+                            {submittingId === item.id ? 'Removing...' : 'Delete'}
+                          </button>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                </>
               )}
             </div>
 
             {/* Pagination Controls */}
             {stockTotalPages > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '16px' }}>
+              <div className="mobile-pagination-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '16px' }}>
                 <button 
                   className="btn btn-secondary" 
                   disabled={stockPage <= 1}
@@ -752,55 +818,88 @@ export default function SalesmanDashboardClient({ salesman }) {
                   <p>No matching orders found.</p>
                 </div>
               ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Order ID</th>
-                      <th>Retailer Shop</th>
-                      <th>Product</th>
-                      <th>Quantity</th>
-                      <th>WhatsApp Delivery Status</th>
-                      <th>Received At</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Order ID</th>
+                        <th>Retailer Shop</th>
+                        <th>Product</th>
+                        <th>Quantity</th>
+                        <th>WhatsApp Delivery Status</th>
+                        <th>Received At</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredOrders.map((order) => (
+                        <tr key={order.id}>
+                          <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>#{order.id}</td>
+                          <td>
+                            <div style={{ fontWeight: '600' }}>{order.retailer?.shopName}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                              📞 <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a>
+                            </div>
+                          </td>
+                          <td>{order.productName}</td>
+                          <td>{order.quantity} strips</td>
+                          <td>
+                            <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
+                              {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                            {new Date(order.createdAt).toLocaleString()}
+                          </td>
+                          <td>
+                            {order.status === 'PENDING' ? (
+                              <button 
+                                className="btn btn-success" 
+                                style={{ padding: '0 12px', fontSize: '13px' }} 
+                                onClick={() => handleFulfillOrder(order.id)}
+                              >
+                                ✓ Mark Delivered
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Done</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="mobile-card-list">
                     {filteredOrders.map((order) => (
-                      <tr key={order.id}>
-                        <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>#{order.id}</td>
-                        <td>
-                          <div style={{ fontWeight: '600' }}>{order.retailer?.shopName}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                            📞 <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a>
-                          </div>
-                        </td>
-                        <td>{order.productName}</td>
-                        <td>{order.quantity} strips</td>
-                        <td>
+                      <div key={order.id} className="mobile-card">
+                        <div className="mobile-card-header">
+                          <span style={{ fontWeight: '700', fontSize: '15px' }}>#{order.id}</span>
                           <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
-                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
+                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending'}
                           </span>
-                        </td>
-                        <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                          {new Date(order.createdAt).toLocaleString()}
-                        </td>
-                        <td>
-                          {order.status === 'PENDING' ? (
+                        </div>
+                        <div className="mobile-card-body">
+                          <div><strong>Retailer Shop:</strong> {order.retailer?.shopName}</div>
+                          <div><strong>Phone:</strong> <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a></div>
+                          <div><strong>Product:</strong> {order.productName}</div>
+                          <div><strong>Quantity:</strong> {order.quantity} strips</div>
+                          <div><strong>Received At:</strong> {new Date(order.createdAt).toLocaleString()}</div>
+                        </div>
+                        {order.status === 'PENDING' && (
+                          <div className="mobile-card-actions">
                             <button 
-                              className="btn btn-success" 
-                              style={{ padding: '0 12px', fontSize: '13px' }} 
+                              className="btn btn-success btn-full" 
+                              style={{ minHeight: '40px', fontSize: '13px' }} 
                               onClick={() => handleFulfillOrder(order.id)}
                             >
                               ✓ Mark Delivered
                             </button>
-                          ) : (
-                            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Done</span>
-                          )}
-                        </td>
-                      </tr>
+                          </div>
+                        )}
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -829,15 +928,24 @@ export default function SalesmanDashboardClient({ salesman }) {
                       <button 
                         key={company.id} 
                         className="company-card"
-                        onClick={() => setSelectedCompanyId(company.id)}
+                        onClick={() => handleSelectCompany(company.id)}
+                        disabled={companyLoadingId !== null}
+                        style={companyLoadingId !== null && companyLoadingId !== company.id ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
                       >
                         <div className="avatar" style={{ backgroundColor: color }}>
                           {initials}
                         </div>
                         <div className="company-info">
                           <div className="company-name">{company.companyName}</div>
-                          <div className="company-meta">{company.stockItems.length} Products Available</div>
+                          <div className="company-meta">
+                            {company.stockItemsCount !== undefined ? company.stockItemsCount : (company.stockItems?.length || 0)} Products Available
+                          </div>
                         </div>
+                        {companyLoadingId === company.id && (
+                          <div style={{ marginLeft: 'auto' }}>
+                            <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px', borderTopColor: 'var(--primary)', margin: 0 }}></div>
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -871,7 +979,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                   )}
                 </div>
 
-                <div style={{ maxWidth: '600px', marginTop: '12px' }}>
+                <div style={{ maxWidth: '600px', marginTop: '12px', paddingBottom: previewTotalPages > 1 ? '80px' : '20px' }}>
                   {filteredPreviewStock.length === 0 ? (
                     <div className="empty-state">
                       <div className="empty-icon">📦</div>
@@ -923,7 +1031,7 @@ export default function SalesmanDashboardClient({ salesman }) {
 
                 {/* Pagination Controls */}
                 {previewTotalPages > 1 && (
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '20px', paddingBottom: '20px', maxWidth: '600px' }}>
+                  <div className="mobile-pagination-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '20px', paddingBottom: '20px', maxWidth: '600px' }}>
                     <button 
                       className="btn btn-secondary" 
                       disabled={previewPage <= 1}

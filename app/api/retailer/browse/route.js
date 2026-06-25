@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 import prisma from '@/lib/db';
 import { validateSession } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request) {
   const cookieStore = await cookies();
   
   // Short-circuit: only validate session if corresponding cookie exists
@@ -21,6 +21,9 @@ export async function GET() {
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const targetCompanyId = searchParams.get('companyId');
+
     const whereClause = { active: true, NOT: { username: 'admin_global' } };
 
     if (retailer) {
@@ -33,7 +36,48 @@ export async function GET() {
       }
     }
 
-    const companies = await prisma.salesman.findMany({
+    if (targetCompanyId) {
+      whereClause.id = parseInt(targetCompanyId);
+    }
+
+    if (!targetCompanyId) {
+      const companies = await prisma.salesman.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          name: true,
+          companyName: true,
+          phone: true,
+          _count: {
+            select: { stockItems: true }
+          }
+        },
+        orderBy: { companyName: 'asc' }
+      });
+
+      const globalSalesman = await prisma.salesman.findUnique({
+        where: { username: 'admin_global' },
+        select: {
+          _count: {
+            select: { stockItems: true }
+          }
+        }
+      });
+      const globalCount = globalSalesman?._count.stockItems || 0;
+
+      const result = companies.map(c => ({
+        id: c.id,
+        name: c.name,
+        companyName: c.companyName,
+        phone: c.phone,
+        stockItemsCount: c._count.stockItems + globalCount,
+        stockItems: []
+      }));
+
+      return NextResponse.json(result);
+    }
+
+    const company = await prisma.salesman.findFirst({
       where: whereClause,
       select: {
         id: true,
@@ -51,11 +95,13 @@ export async function GET() {
           },
           orderBy: { name: 'asc' }
         }
-      },
-      orderBy: { companyName: 'asc' }
+      }
     });
 
-    // Fetch the shared stock items uploaded by admin
+    if (!company) {
+      return NextResponse.json({ error: 'Company not found' }, { status: 404 });
+    }
+
     const globalSalesman = await prisma.salesman.findUnique({
       where: { username: 'admin_global' },
       include: {
@@ -73,6 +119,11 @@ export async function GET() {
       }
     });
 
+    const globalItems = (globalSalesman?.stockItems || []).map(item => ({
+      ...item,
+      isAdminGlobal: true
+    }));
+
     const getUniquenessKey = (name, mfg, pack) => {
       const cleanName = (name || '').trim().toLowerCase();
       const cleanMfg = (mfg || '').trim().toLowerCase();
@@ -80,22 +131,15 @@ export async function GET() {
       return `${cleanName}|${cleanMfg}|${cleanPack}`;
     };
 
-    const globalItems = (globalSalesman?.stockItems || []).map(item => ({
-      ...item,
-      isAdminGlobal: true
-    }));
+    const ownKeys = new Set(company.stockItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
+    const filteredGlobalItems = globalItems.filter(item => !ownKeys.has(getUniquenessKey(item.name, item.mfg, item.pack)));
+    
+    const mergedCompany = {
+      ...company,
+      stockItems: [...company.stockItems, ...filteredGlobalItems].sort((a, b) => a.name.localeCompare(b.name))
+    };
 
-    // Merge the global items into each company's stock list, skipping overlapping items
-    const mergedCompanies = companies.map(company => {
-      const ownKeys = new Set(company.stockItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
-      const filteredGlobalItems = globalItems.filter(item => !ownKeys.has(getUniquenessKey(item.name, item.mfg, item.pack)));
-      return {
-        ...company,
-        stockItems: [...company.stockItems, ...filteredGlobalItems].sort((a, b) => a.name.localeCompare(b.name))
-      };
-    });
-
-    return NextResponse.json(mergedCompanies);
+    return NextResponse.json(mergedCompany);
   } catch (error) {
     console.error('Fetch catalog error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

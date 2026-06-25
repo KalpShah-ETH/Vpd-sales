@@ -177,9 +177,15 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Forbidden or item not found' }, { status: 403 });
     }
 
-    await prisma.stockItem.delete({
-      where: { id: parseInt(id) }
-    });
+    try {
+      await prisma.stockItem.delete({
+        where: { id: parseInt(id) }
+      });
+    } catch (dbErr) {
+      if (dbErr.code !== 'P2025') {
+        throw dbErr;
+      }
+    }
 
     return NextResponse.json({ success: true, message: 'Stock item deleted successfully' });
   } catch (error) {

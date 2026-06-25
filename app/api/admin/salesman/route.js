@@ -17,7 +17,20 @@ export async function GET() {
   }
 
   try {
+    const globalSalesman = await prisma.salesman.findUnique({
+      where: { username: 'admin_global' },
+      select: { id: true }
+    });
+
+    const globalItems = globalSalesman ? await prisma.stockItem.findMany({
+      where: { salesmanId: globalSalesman.id },
+      select: { name: true, mfg: true, pack: true }
+    }) : [];
+
     const salesmen = await prisma.salesman.findMany({
+      where: {
+        username: { not: 'admin_global' }
+      },
       orderBy: { id: 'desc' },
       select: {
         id: true,
@@ -26,12 +39,42 @@ export async function GET() {
         phone: true,
         username: true,
         active: true,
+        stockItems: {
+          select: { name: true, mfg: true, pack: true }
+        },
         _count: {
-          select: { stockItems: true, orders: true }
+          select: { orders: true }
         }
       }
     });
-    return NextResponse.json(salesmen);
+
+    const getUniquenessKey = (name, mfg, pack) => {
+      const cleanName = (name || '').trim().toLowerCase();
+      const cleanMfg = (mfg || '').trim().toLowerCase();
+      const cleanPack = (pack || '').trim().toLowerCase();
+      return `${cleanName}|${cleanMfg}|${cleanPack}`;
+    };
+
+    const formattedSalesmen = salesmen.map(salesman => {
+      const ownKeys = new Set(salesman.stockItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
+      const activeGlobalCount = globalItems.filter(item => !ownKeys.has(getUniquenessKey(item.name, item.mfg, item.pack))).length;
+      const totalStockCount = salesman.stockItems.length + activeGlobalCount;
+
+      return {
+        id: salesman.id,
+        name: salesman.name,
+        companyName: salesman.companyName,
+        phone: salesman.phone,
+        username: salesman.username,
+        active: salesman.active,
+        _count: {
+          stockItems: totalStockCount,
+          orders: salesman._count.orders
+        }
+      };
+    });
+
+    return NextResponse.json(formattedSalesmen);
   } catch (error) {
     console.error('Fetch salesmen error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -187,9 +230,15 @@ export async function DELETE(request) {
       return NextResponse.json({ error: 'Salesman ID is required' }, { status: 400 });
     }
 
-    await prisma.salesman.delete({
-      where: { id: parseInt(id) }
-    });
+    try {
+      await prisma.salesman.delete({
+        where: { id: parseInt(id) }
+      });
+    } catch (dbErr) {
+      if (dbErr.code !== 'P2025') {
+        throw dbErr;
+      }
+    }
 
     return NextResponse.json({ success: true, message: 'Salesman deleted successfully' });
   } catch (error) {

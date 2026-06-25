@@ -31,6 +31,30 @@ export default function AdminDashboardClient() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [previewPage, setPreviewPage] = useState(1);
+  const [companyLoadingId, setCompanyLoadingId] = useState(null);
+
+  const handleSelectCompany = async (companyId) => {
+    if (companyLoadingId) return;
+    setCompanyLoadingId(companyId);
+    try {
+      const res = await fetch(`/api/retailer/browse?companyId=${companyId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
+        setSelectedCompanyId(companyId);
+        setSearchQuery('');
+        setPreviewPage(1);
+        window.scrollTo(0, 0);
+      } else {
+        showToast('Failed to load company catalogue');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('Error connecting to database');
+    } finally {
+      setCompanyLoadingId(null);
+    }
+  };
   
   // Bulk Stock Upload state for Admin on behalf of Salesman
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
@@ -861,74 +885,123 @@ export default function AdminDashboardClient() {
                   <button className="btn btn-secondary" onClick={openAddSalesmanModal}>Add Your First Salesman</button>
                 </div>
               ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Salesman Details</th>
-                      <th>Company Representing</th>
-                      <th>WhatsApp Routing</th>
-                      <th>Username (Phone)</th>
-                      <th>Catalogue Stats</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Salesman Details</th>
+                        <th>Company Representing</th>
+                        <th>WhatsApp Routing</th>
+                        <th>Username (Phone)</th>
+                        <th>Catalogue Stats</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {salesmen.map((salesman) => (
+                        <tr key={salesman.id}>
+                          <td>
+                            <div style={{ fontWeight: '600' }}>{salesman.name}</div>
+                          </td>
+                          <td>
+                            <div className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
+                              {salesman.companyName}
+                            </div>
+                          </td>
+                          <td style={{ fontFamily: 'monospace' }}>{salesman.phone}</td>
+                          <td style={{ fontWeight: '500' }}>{salesman.username}</td>
+                          <td style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
+                            📦 {salesman._count.stockItems} items | 🧾 {salesman._count.orders} orders
+                          </td>
+                          <td>
+                            <span className={`badge ${salesman.active ? 'badge-success' : 'badge-warning'}`}>
+                              {salesman.active ? 'Active' : 'Deactivated'}
+                            </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button 
+                                className={`btn ${salesman.active ? 'btn-secondary' : 'btn-primary'}`} 
+                                style={{ padding: '0 10px', fontSize: '14px' }}
+                                onClick={async () => {
+                                  try {
+                                    const res = await fetch('/api/admin/salesman', {
+                                      method: 'PUT',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({ id: salesman.id, active: !salesman.active })
+                                    });
+                                    if (!res.ok) throw new Error('Failed to toggle active status');
+                                    showToast(`Salesman ${!salesman.active ? 'activated' : 'deactivated'} successfully!`);
+                                    fetchSalesmen();
+                                    fetchCatalog();
+                                  } catch (err) {
+                                    showErrorToast(err.message);
+                                  }
+                                }}
+                              >
+                                {salesman.active ? 'Disable' : 'Enable'}
+                              </button>
+                              <button className="btn btn-secondary" style={{ padding: '0 10px', fontSize: '14px' }} onClick={() => openEditSalesmanModal(salesman)}>
+                                Edit
+                              </button>
+                              <button className="btn btn-danger" style={{ padding: '0 10px', fontSize: '14px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="mobile-card-list">
                     {salesmen.map((salesman) => (
-                      <tr key={salesman.id}>
-                        <td>
-                          <div style={{ fontWeight: '600' }}>{salesman.name}</div>
-                        </td>
-                        <td>
-                          <div className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
-                            {salesman.companyName}
-                          </div>
-                        </td>
-                        <td style={{ fontFamily: 'monospace' }}>{salesman.phone}</td>
-                        <td style={{ fontWeight: '500' }}>{salesman.username}</td>
-                        <td style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                          📦 {salesman._count.stockItems} items | 🧾 {salesman._count.orders} orders
-                        </td>
-                        <td>
+                      <div key={salesman.id} className="mobile-card">
+                        <div className="mobile-card-header">
+                          <span style={{ fontWeight: '700', fontSize: '16px' }}>{salesman.name}</span>
                           <span className={`badge ${salesman.active ? 'badge-success' : 'badge-warning'}`}>
                             {salesman.active ? 'Active' : 'Deactivated'}
                           </span>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button 
-                              className={`btn ${salesman.active ? 'btn-secondary' : 'btn-primary'}`} 
-                              style={{ padding: '0 10px', fontSize: '14px' }}
-                              onClick={async () => {
-                                try {
-                                  const res = await fetch('/api/admin/salesman', {
-                                    method: 'PUT',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ id: salesman.id, active: !salesman.active })
-                                  });
-                                  if (!res.ok) throw new Error('Failed to toggle active status');
-                                  showToast(`Salesman ${!salesman.active ? 'activated' : 'deactivated'} successfully!`);
-                                  fetchSalesmen();
-                                  fetchCatalog();
-                                } catch (err) {
-                                  showErrorToast(err.message);
-                                }
-                              }}
-                            >
-                              {salesman.active ? 'Disable' : 'Enable'}
-                            </button>
-                            <button className="btn btn-secondary" style={{ padding: '0 10px', fontSize: '14px' }} onClick={() => openEditSalesmanModal(salesman)}>
-                              Edit
-                            </button>
-                            <button className="btn btn-danger" style={{ padding: '0 10px', fontSize: '14px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                        </div>
+                        <div className="mobile-card-body">
+                          <div><strong>Company:</strong> {salesman.companyName}</div>
+                          <div><strong>Phone (Username):</strong> {salesman.phone}</div>
+                          <div><strong>Stats:</strong> 📦 {salesman._count.stockItems} items | 🧾 {salesman._count.orders} orders</div>
+                        </div>
+                        <div className="mobile-card-actions">
+                          <button 
+                            className={`btn ${salesman.active ? 'btn-secondary' : 'btn-primary'}`} 
+                            style={{ flex: 1, minHeight: '40px', padding: '0 8px', fontSize: '13px' }}
+                            onClick={async () => {
+                              try {
+                                const res = await fetch('/api/admin/salesman', {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ id: salesman.id, active: !salesman.active })
+                                });
+                                if (!res.ok) throw new Error('Failed to toggle active status');
+                                showToast(`Salesman ${!salesman.active ? 'activated' : 'deactivated'} successfully!`);
+                                fetchSalesmen();
+                                fetchCatalog();
+                              } catch (err) {
+                                showErrorToast(err.message);
+                              }
+                            }}
+                          >
+                            {salesman.active ? 'Disable' : 'Enable'}
+                          </button>
+                          <button className="btn btn-secondary" style={{ flex: 1, minHeight: '40px', padding: '0 8px', fontSize: '13px' }} onClick={() => openEditSalesmanModal(salesman)}>
+                            Edit
+                          </button>
+                          <button className="btn btn-danger" style={{ flex: 1, minHeight: '40px', padding: '0 8px', fontSize: '13px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
+                            Delete
+                          </button>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -991,89 +1064,162 @@ export default function AdminDashboardClient() {
                   <p>No retailers found.</p>
                 </div>
               ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Shop Name</th>
-                      <th>Phone Number</th>
-                      <th>Status</th>
-                      <th>Orders Placed</th>
-                      <th>Unique Private Link</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Shop Name</th>
+                        <th>Phone Number</th>
+                        <th>Status</th>
+                        <th>Orders Placed</th>
+                        <th>Unique Private Link</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredRetailers.map((retailer) => (
+                        <tr key={retailer.id}>
+                          <td>
+                            <div style={{ fontWeight: '600' }}>{retailer.shopName}</div>
+                          </td>
+                          <td style={{ fontFamily: 'monospace' }}>{retailer.phone}</td>
+                          <td>
+                            <span className={`badge ${retailer.active ? 'badge-success' : 'badge-warning'}`}>
+                              {retailer.active ? 'Active' : 'Deactivated'}
+                            </span>
+                          </td>
+                          <td>🛒 {retailer._count.orders} orders</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <input 
+                                type="text" 
+                                readOnly 
+                                className="form-input" 
+                                style={{ padding: '0 8px', fontSize: '13px', width: '220px', fontFamily: 'monospace', background: 'var(--bg-primary)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', cursor: 'default', boxShadow: 'none' }}
+                                value={`${hostUrl}/r/${retailer.token}`} 
+                              />
+                              <button 
+                                className="btn btn-primary" 
+                                style={{ padding: '0 12px', fontSize: '13px' }}
+                                onClick={() => handleCopyLink(retailer.token)}
+                                disabled={!retailer.active}
+                              >
+                                Copy
+                              </button>
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0 10px', fontSize: '13px' }} 
+                                onClick={() => {
+                                  setEditingRetailer(retailer);
+                                  setRetailerForm({ shopName: retailer.shopName, phone: retailer.phone, active: retailer.active });
+                                  setIsRetailerModalOpen(true);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button 
+                                className={`btn ${retailer.active ? 'btn-secondary' : 'btn-primary'}`} 
+                                style={{ padding: '0 10px', fontSize: '13px' }} 
+                                onClick={() => toggleRetailerStatus(retailer)}
+                              >
+                                {retailer.active ? 'Disable' : 'Enable'}
+                              </button>
+                              <button 
+                                className="btn btn-secondary" 
+                                style={{ padding: '0 10px', fontSize: '13px' }} 
+                                onClick={() => regenerateRetailerLink(retailer.id)}
+                              >
+                                🔄 Reset Link
+                              </button>
+                              <button 
+                                className="btn btn-danger" 
+                                style={{ padding: '0 10px', fontSize: '13px' }} 
+                                onClick={() => handleDeleteRetailer(retailer.id)}
+                              >
+                                ❌ Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="mobile-card-list">
                     {filteredRetailers.map((retailer) => (
-                      <tr key={retailer.id}>
-                        <td>
-                          <div style={{ fontWeight: '600' }}>{retailer.shopName}</div>
-                        </td>
-                        <td style={{ fontFamily: 'monospace' }}>{retailer.phone}</td>
-                        <td>
+                      <div key={retailer.id} className="mobile-card">
+                        <div className="mobile-card-header">
+                          <span style={{ fontWeight: '700', fontSize: '16px' }}>{retailer.shopName}</span>
                           <span className={`badge ${retailer.active ? 'badge-success' : 'badge-warning'}`}>
                             {retailer.active ? 'Active' : 'Deactivated'}
                           </span>
-                        </td>
-                        <td>🛒 {retailer._count.orders} orders</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <input 
-                              type="text" 
-                              readOnly 
-                              className="form-input" 
-                              style={{ padding: '0 8px', fontSize: '13px', width: '220px', fontFamily: 'monospace', background: 'var(--bg-primary)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', cursor: 'default', boxShadow: 'none' }}
-                              value={`${hostUrl}/r/${retailer.token}`} 
-                            />
-                            <button 
-                              className="btn btn-primary" 
-                              style={{ padding: '0 12px', fontSize: '13px' }}
-                              onClick={() => handleCopyLink(retailer.token)}
-                              disabled={!retailer.active}
-                            >
-                              Copy
-                            </button>
+                        </div>
+                        <div className="mobile-card-body">
+                          <div><strong>Phone:</strong> {retailer.phone}</div>
+                          <div><strong>Orders:</strong> 🛒 {retailer._count.orders} orders</div>
+                          <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <strong>Private Link:</strong>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <input 
+                                type="text" 
+                                readOnly 
+                                className="form-input" 
+                                style={{ flex: 1, minHeight: '36px', height: '36px', padding: '0 8px', fontSize: '12px', fontFamily: 'monospace', background: 'var(--bg-primary)', color: 'var(--text-muted)', border: '1px solid var(--border-color)', cursor: 'default', boxShadow: 'none' }}
+                                value={`${hostUrl}/r/${retailer.token}`} 
+                              />
+                              <button 
+                                className="btn btn-primary" 
+                                style={{ minHeight: '36px', height: '36px', padding: '0 12px', fontSize: '12px' }}
+                                onClick={() => handleCopyLink(retailer.token)}
+                                disabled={!retailer.active}
+                              >
+                                Copy
+                              </button>
+                            </div>
                           </div>
-                        </td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button 
-                              className="btn btn-secondary" 
-                              style={{ padding: '0 10px', fontSize: '13px' }} 
-                              onClick={() => {
-                                setEditingRetailer(retailer);
-                                setRetailerForm({ shopName: retailer.shopName, phone: retailer.phone, active: retailer.active });
-                                setIsRetailerModalOpen(true);
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button 
-                              className={`btn ${retailer.active ? 'btn-secondary' : 'btn-primary'}`} 
-                              style={{ padding: '0 10px', fontSize: '13px' }} 
-                              onClick={() => toggleRetailerStatus(retailer)}
-                            >
-                              {retailer.active ? 'Disable' : 'Enable'}
-                            </button>
-                            <button 
-                              className="btn btn-secondary" 
-                              style={{ padding: '0 10px', fontSize: '13px' }} 
-                              onClick={() => regenerateRetailerLink(retailer.id)}
-                            >
-                              🔄 Reset Link
-                            </button>
-                            <button 
-                              className="btn btn-danger" 
-                              style={{ padding: '0 10px', fontSize: '13px' }} 
-                              onClick={() => handleDeleteRetailer(retailer.id)}
-                            >
-                              ❌ Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                        </div>
+                        <div className="mobile-card-actions">
+                          <button 
+                            className="btn btn-secondary" 
+                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            onClick={() => {
+                              setEditingRetailer(retailer);
+                              setRetailerForm({ shopName: retailer.shopName, phone: retailer.phone, active: retailer.active });
+                              setIsRetailerModalOpen(true);
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            className={`btn ${retailer.active ? 'btn-secondary' : 'btn-primary'}`} 
+                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            onClick={() => toggleRetailerStatus(retailer)}
+                          >
+                            {retailer.active ? 'Disable' : 'Enable'}
+                          </button>
+                          <button 
+                            className="btn btn-secondary" 
+                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            onClick={() => regenerateRetailerLink(retailer.id)}
+                          >
+                            Reset
+                          </button>
+                          <button 
+                            className="btn btn-danger" 
+                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            onClick={() => handleDeleteRetailer(retailer.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -1112,45 +1258,67 @@ export default function AdminDashboardClient() {
                   <p>No orders captured in system yet.</p>
                 </div>
               ) : (
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Order ID</th>
-                      <th>Retailer (Shop Name)</th>
-                      <th>Pharma Company</th>
-                      <th>Product Ordered</th>
-                      <th>Routing Status</th>
-                      <th>Timestamp</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.map((order) => (
-                      <tr key={order.id}>
-                        <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>#{order.id}</td>
-                        <td>
-                          <div style={{ fontWeight: '600' }}>{order.retailer?.shopName}</div>
-                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                            📞 <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
-                            {order.salesman?.companyName}
-                          </span>
-                        </td>
-                        <td>{order.productName}</td>
-                        <td>
-                          <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
-                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                          {new Date(order.createdAt).toLocaleString()}
-                        </td>
+                <>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Order ID</th>
+                        <th>Retailer (Shop Name)</th>
+                        <th>Pharma Company</th>
+                        <th>Product Ordered</th>
+                        <th>Routing Status</th>
+                        <th>Timestamp</th>
                       </tr>
+                    </thead>
+                    <tbody>
+                      {orders.map((order) => (
+                        <tr key={order.id}>
+                          <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>#{order.id}</td>
+                          <td>
+                            <div style={{ fontWeight: '600' }}>{order.retailer?.shopName}</div>
+                            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                              📞 <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
+                              {order.salesman?.companyName}
+                            </span>
+                          </td>
+                          <td>{order.productName}</td>
+                          <td>
+                            <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
+                              {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                            {new Date(order.createdAt).toLocaleString()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div className="mobile-card-list">
+                    {orders.map((order) => (
+                      <div key={order.id} className="mobile-card">
+                        <div className="mobile-card-header">
+                          <span style={{ fontWeight: '700', fontSize: '15px' }}>#{order.id}</span>
+                          <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
+                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending'}
+                          </span>
+                        </div>
+                        <div className="mobile-card-body">
+                          <div><strong>Shop Name:</strong> {order.retailer?.shopName}</div>
+                          <div><strong>Phone:</strong> <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a></div>
+                          <div><strong>Pharma Company:</strong> <span className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>{order.salesman?.companyName}</span></div>
+                          <div><strong>Product:</strong> {order.productName}</div>
+                          <div><strong>Time:</strong> {new Date(order.createdAt).toLocaleString()}</div>
+                        </div>
+                      </div>
                     ))}
-                  </tbody>
-                </table>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -1176,22 +1344,27 @@ export default function AdminDashboardClient() {
                     const color = colors[company.id % colors.length];
 
                     return (
-                      <button 
+                       <button 
                         key={company.id} 
                         className="company-card"
-                        onClick={() => {
-                          setSelectedCompanyId(company.id);
-                          setSearchQuery('');
-                          window.scrollTo(0, 0);
-                        }}
+                        onClick={() => handleSelectCompany(company.id)}
+                        disabled={companyLoadingId !== null}
+                        style={companyLoadingId !== null && companyLoadingId !== company.id ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
                       >
                         <div className="avatar" style={{ backgroundColor: color }}>
                           {initials}
                         </div>
                         <div className="company-info">
                           <div className="company-name">{company.companyName}</div>
-                          <div className="company-meta">{company.stockItems.length} Products Available</div>
+                          <div className="company-meta">
+                            {company.stockItemsCount !== undefined ? company.stockItemsCount : (company.stockItems?.length || 0)} Products Available
+                          </div>
                         </div>
+                        {companyLoadingId === company.id && (
+                          <div style={{ marginLeft: 'auto' }}>
+                            <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px', borderTopColor: 'var(--primary)', margin: 0 }}></div>
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -1225,7 +1398,7 @@ export default function AdminDashboardClient() {
                   )}
                 </div>
 
-                <div style={{ maxWidth: '600px', marginTop: '12px' }}>
+                <div style={{ maxWidth: '600px', marginTop: '12px', paddingBottom: previewTotalPages > 1 ? '80px' : '20px' }}>
                   {filteredPreviewStock.length === 0 ? (
                     <div className="empty-state">
                       <div className="empty-icon">📦</div>
@@ -1265,7 +1438,7 @@ export default function AdminDashboardClient() {
 
                 {/* Pagination Controls */}
                 {previewTotalPages > 1 && (
-                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '20px', paddingBottom: '20px', maxWidth: '600px' }}>
+                  <div className="mobile-pagination-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '20px', paddingBottom: '20px', maxWidth: '600px' }}>
                     <button 
                       className="btn btn-secondary" 
                       disabled={previewPage <= 1}
@@ -1785,7 +1958,14 @@ export default function AdminDashboardClient() {
                 onClick={handleCsvUploadSubmit}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
               >
-                {csvUploadLoading ? 'Uploading...' : 'Upload Stock'}
+                {csvUploadLoading ? (
+                  <>
+                    <span className="spinner" style={{ width: '18px', height: '18px', borderWidth: '2px', borderTopColor: '#ffffff', margin: 0 }}></span>
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  'Upload Stock'
+                )}
               </button>
             </div>
           </div>

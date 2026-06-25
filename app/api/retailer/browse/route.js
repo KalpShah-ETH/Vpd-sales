@@ -21,7 +21,7 @@ export async function GET() {
   }
 
   try {
-    const whereClause = { active: true };
+    const whereClause = { active: true, NOT: { username: 'admin_global' } };
 
     if (retailer) {
       const dbRetailer = await prisma.retailer.findUnique({
@@ -55,7 +55,36 @@ export async function GET() {
       orderBy: { companyName: 'asc' }
     });
 
-    return NextResponse.json(companies);
+    // Fetch the shared stock items uploaded by admin
+    const globalSalesman = await prisma.salesman.findUnique({
+      where: { username: 'admin_global' },
+      include: {
+        stockItems: {
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            quantity: true,
+            mfg: true,
+            pack: true
+          },
+          orderBy: { name: 'asc' }
+        }
+      }
+    });
+
+    const globalItems = (globalSalesman?.stockItems || []).map(item => ({
+      ...item,
+      isAdminGlobal: true
+    }));
+
+    // Merge the global items into each company's stock list
+    const mergedCompanies = companies.map(company => ({
+      ...company,
+      stockItems: [...company.stockItems, ...globalItems].sort((a, b) => a.name.localeCompare(b.name))
+    }));
+
+    return NextResponse.json(mergedCompanies);
   } catch (error) {
     console.error('Fetch catalog error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

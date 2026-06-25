@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 
 export default function AdminDashboardClient() {
   const router = useRouter();
@@ -28,6 +29,13 @@ export default function AdminDashboardClient() {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', isError: false });
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Bulk Stock Upload state for Admin on behalf of Salesman
+  const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
+  const [csvItems, setCsvItems] = useState([]);
+  const [csvFileName, setCsvFileName] = useState('');
+  const [csvUploadLoading, setCsvUploadLoading] = useState(false);
+  const [selectedUploadSalesman, setSelectedUploadSalesman] = useState(null);
   
   // Custom Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState({
@@ -114,6 +122,115 @@ export default function AdminDashboardClient() {
     setTimeout(() => {
       setToast({ visible: false, message: '', isError: false });
     }, 3000);
+  };
+
+  const handleCsvFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setCsvFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Parse sheet to JSON array (2D array of rows)
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        const parsed = parseExcelContent(rows);
+        setCsvItems(parsed);
+      } catch (err) {
+        console.error(err);
+        showErrorToast('Failed to parse file. Make sure it is a valid CSV or XLSX file.');
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const parseExcelContent = (rows) => {
+    if (rows.length === 0) return [];
+
+    // Find headers
+    const firstRow = rows[0].map(cell => String(cell).trim().toLowerCase());
+    
+    let mfgIdx = -1;
+    let nameIdx = -1;
+    let packIdx = -1;
+    let qtyIdx = -1;
+
+    firstRow.forEach((cell, idx) => {
+      if (cell.includes('mfg') || cell.includes('manufacturer')) {
+        mfgIdx = idx;
+      } else if (cell.includes('item name') || cell.includes('name') || cell.includes('medicine') || cell.includes('product')) {
+        nameIdx = idx;
+      } else if (cell.includes('pack')) {
+        packIdx = idx;
+      } else if (cell.includes('qty') || cell.includes('quantity') || cell.includes('stock')) {
+        qtyIdx = idx;
+      }
+    });
+
+    // Fallbacks if headers are missing
+    if (nameIdx === -1) nameIdx = 1; // Default to column 2
+    if (mfgIdx === -1) mfgIdx = 0;   // Default to column 1
+    if (packIdx === -1) packIdx = 2;  // Default to column 3
+    if (qtyIdx === -1) qtyIdx = 3;    // Default to column 4
+
+    const items = [];
+    const startIndex = 1; 
+
+    for (let i = startIndex; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length === 0) continue;
+
+      const name = row[nameIdx] ? String(row[nameIdx]).trim() : '';
+      const mfg = mfgIdx !== -1 && row[mfgIdx] ? String(row[mfgIdx]).trim() : '';
+      const pack = packIdx !== -1 && row[packIdx] ? String(row[packIdx]).trim() : '';
+      const quantityVal = qtyIdx !== -1 ? row[qtyIdx] : 0;
+      
+      const quantity = parseInt(quantityVal);
+
+      if (name && !isNaN(quantity)) {
+        items.push({
+          name,
+          mfg,
+          pack,
+          quantity,
+          price: 0.0
+        });
+      }
+    }
+    return items;
+  };
+
+  const handleCsvUploadSubmit = async () => {
+    if (csvItems.length === 0) return;
+    setCsvUploadLoading(true);
+    try {
+      const res = await fetch('/api/admin/salesman/bulk-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          items: csvItems 
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to upload items');
+
+      showToast(`Uploaded successfully to all ${data.salesmenCount} salesmen! Added ${data.inserted} new medicines, skipped ${data.skipped} duplicates.`);
+      setIsCsvModalOpen(false);
+      setCsvItems([]);
+      setCsvFileName('');
+      setSelectedUploadSalesman(null);
+      fetchSalesmen(); 
+      fetchCatalog(); 
+    } catch (err) {
+      showErrorToast(err.message);
+    } finally {
+      setCsvUploadLoading(false);
+    }
   };
 
   // API Call: Fetch Salesmen
@@ -674,6 +791,17 @@ export default function AdminDashboardClient() {
               <div style={{ display: 'flex', gap: '12px' }}>
                 <button className="btn btn-secondary" onClick={() => setIsSalesmanBulkUploadModalOpen(true)}>
                   📥 Bulk Upload CSV
+                </button>
+                <button 
+                  className="btn btn-secondary" 
+                  style={{ backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary)' }}
+                  onClick={() => {
+                    setIsCsvModalOpen(true);
+                    setCsvItems([]);
+                    setCsvFileName('');
+                  }}
+                >
+                  📄 Bulk Upload Stock (Shared Global)
                 </button>
                 <button className="btn btn-primary" onClick={openAddSalesmanModal}>
                   ➕ Add New Salesman
@@ -1472,6 +1600,118 @@ export default function AdminDashboardClient() {
 
 
       {/* Shared Confirm Modal */}
+      {/* MODAL: Admin Bulk Stock Upload for Shared Global Stock */}
+      {isCsvModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Bulk Upload Shared Global Stock</h2>
+              <button 
+                className="modal-close" 
+                onClick={() => {
+                  setIsCsvModalOpen(false);
+                  setCsvItems([]);
+                  setCsvFileName('');
+                  setSelectedUploadSalesman(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{ padding: '8px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '16px', lineHeight: '1.5' }}>
+                Upload a CSV or XLSX file containing stock catalog. The system will save these stock items centrally as <strong>Shared Global Stock</strong> and reflect them across all salesmen's catalogues automatically.
+                Column headers like <strong>mfg</strong>, <strong>item name</strong>, <strong>pack</strong>, and <strong>Qty.</strong> are expected.
+                Duplicate items in the central global stock database will be automatically skipped.
+              </p>
+              
+              <div className="form-group" style={{ border: '2px dashed var(--border-color)', padding: '24px', borderRadius: 'var(--radius-md)', textAlign: 'center', backgroundColor: 'var(--bg-primary)', marginBottom: '16px' }}>
+                <input
+                  type="file"
+                  id="csv-file-input"
+                  accept=".csv,.xlsx"
+                  onChange={handleCsvFileChange}
+                  style={{ display: 'none' }}
+                />
+                <label 
+                  htmlFor="csv-file-input" 
+                  style={{ cursor: 'pointer', display: 'block', fontWeight: '600', color: 'var(--primary)' }}
+                >
+                  {csvFileName ? `📄 Selected: ${csvFileName}` : '📂 Click to choose a CSV/XLSX file'}
+                </label>
+                {csvFileName && (
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    Click again to change file
+                  </p>
+                )}
+              </div>
+
+              {csvItems.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                    Parsed Preview ({csvItems.length} items found)
+                  </h3>
+                  <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '8px', backgroundColor: 'var(--bg-primary)' }}>
+                    <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', fontWeight: '700' }}>
+                          <th style={{ padding: '6px' }}>Mfg</th>
+                          <th style={{ padding: '6px' }}>Medicine Name</th>
+                          <th style={{ padding: '6px' }}>Pack</th>
+                          <th style={{ padding: '6px' }}>Quantity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvItems.slice(0, 100).map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '6px', color: 'var(--text-muted)' }}>{item.mfg}</td>
+                            <td style={{ padding: '6px', fontWeight: '500' }}>{item.name}</td>
+                            <td style={{ padding: '6px' }}>{item.pack}</td>
+                            <td style={{ padding: '6px' }}>{item.quantity}</td>
+                          </tr>
+                        ))}
+                        {csvItems.length > 100 && (
+                          <tr>
+                            <td colSpan="4" style={{ padding: '8px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                              ... and {csvItems.length - 100} more items
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setIsCsvModalOpen(false);
+                  setCsvItems([]);
+                  setCsvFileName('');
+                  setSelectedUploadSalesman(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                disabled={csvItems.length === 0 || csvUploadLoading}
+                onClick={handleCsvUploadSubmit}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                {csvUploadLoading ? 'Uploading...' : 'Upload Stock'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         title={confirmModal.title}

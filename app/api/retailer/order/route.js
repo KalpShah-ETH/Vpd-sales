@@ -46,6 +46,13 @@ export async function POST(request) {
       const orderResults = [];
       let salesman = null;
 
+      // Pre-fetch the retailer's salesman to route global orders to
+      if (dbRetailer.salesmanId) {
+        salesman = await tx.salesman.findUnique({
+          where: { id: dbRetailer.salesmanId }
+        });
+      }
+
       for (const entry of orderItems) {
         const stockItem = await tx.stockItem.findUnique({
           where: { id: parseInt(entry.stockItemId) },
@@ -54,11 +61,17 @@ export async function POST(request) {
           }
         });
 
-        if (!stockItem || !stockItem.salesman || !stockItem.salesman.active) {
-          throw { status: 404, error: `Product "${stockItem?.name || 'Unknown'}" or company is currently unavailable` };
+        if (!stockItem || !stockItem.salesman) {
+          throw { status: 404, error: `Product is currently unavailable` };
         }
 
-        if (dbRetailer.salesmanId && stockItem.salesmanId !== dbRetailer.salesmanId) {
+        const isGlobal = stockItem.salesman.username === 'admin_global';
+
+        if (!isGlobal && !stockItem.salesman.active) {
+          throw { status: 404, error: `Product "${stockItem.name}" or company is currently unavailable` };
+        }
+
+        if (!isGlobal && dbRetailer.salesmanId && stockItem.salesmanId !== dbRetailer.salesmanId) {
           throw { status: 403, error: `Unauthorized: Product "${stockItem.name}" does not belong to your company catalog` };
         }
 
@@ -66,7 +79,9 @@ export async function POST(request) {
           throw { status: 400, error: `Product "${stockItem.name}" does not have enough stock. Available: ${stockItem.quantity}` };
         }
 
-        salesman = stockItem.salesman;
+        if (!isGlobal) {
+          salesman = stockItem.salesman;
+        }
 
         // Update stock item quantity in DB (decrement)
         const updatedStockItem = await tx.stockItem.update({
@@ -87,7 +102,7 @@ export async function POST(request) {
         const order = await tx.order.create({
           data: {
             retailerId: dbRetailer.id,
-            salesmanId: stockItem.salesman.id,
+            salesmanId: dbRetailer.salesmanId || stockItem.salesman.id,
             productName: stockItem.name,
             quantity: entry.quantity,
             price: stockItem.price,

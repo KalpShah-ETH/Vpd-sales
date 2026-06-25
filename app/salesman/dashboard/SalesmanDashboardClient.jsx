@@ -23,6 +23,8 @@ export default function SalesmanDashboardClient({ salesman }) {
   const [stockPage, setStockPage] = useState(1);
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [previewPage, setPreviewPage] = useState(1);
   const [orderStatusFilter, setOrderStatusFilter] = useState('ALL'); // ALL, PENDING, FULFILLED
   const [submittingId, setSubmittingId] = useState(null);
 
@@ -68,6 +70,13 @@ export default function SalesmanDashboardClient({ salesman }) {
   // Preview tab state
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -429,6 +438,23 @@ export default function SalesmanDashboardClient({ salesman }) {
     return filteredStock.slice(start, start + ITEMS_PER_PAGE);
   }, [filteredStock, stockPage]);
 
+  const filteredPreviewStock = useMemo(() => {
+    if (!selectedCompany?.stockItems) return [];
+    if (!debouncedSearchQuery) return selectedCompany.stockItems;
+    const q = debouncedSearchQuery.toLowerCase();
+    return selectedCompany.stockItems.filter(item => 
+      item.name.toLowerCase().includes(q) ||
+      (item.mfg && item.mfg.toLowerCase().includes(q))
+    );
+  }, [selectedCompany?.stockItems, debouncedSearchQuery]);
+
+  const previewTotalPages = Math.ceil(filteredPreviewStock.length / ITEMS_PER_PAGE);
+
+  const paginatedPreviewStock = useMemo(() => {
+    const start = (previewPage - 1) * ITEMS_PER_PAGE;
+    return filteredPreviewStock.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredPreviewStock, previewPage]);
+
   const filteredOrders = useMemo(() => {
     let result = orders;
     if (orderSearchQuery) {
@@ -602,10 +628,17 @@ export default function SalesmanDashboardClient({ salesman }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {paginatedStock.map((item) => (
+                     {paginatedStock.map((item) => (
                       <tr key={item.id} className={item.quantity === 0 ? 'out-of-stock' : ''} style={item.quantity === 0 ? { opacity: 0.6 } : {}}>
                         <td>
-                          <div style={{ fontWeight: '600', fontSize: '16px' }}>{item.name}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                            <div style={{ fontWeight: '600', fontSize: '16px' }}>{item.name}</div>
+                            {item.isAdminGlobal && (
+                              <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                                🌐 Shared Stock
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td style={{ fontWeight: '600', color: 'var(--text-muted)' }}>{item.mfg || '-'}</td>
                         <td style={{ fontWeight: '600' }}>{item.quantity} strips</td>
@@ -616,10 +649,22 @@ export default function SalesmanDashboardClient({ salesman }) {
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className="btn btn-secondary" style={{ padding: '0 10px', fontSize: '14px' }} disabled={submittingId === item.id} onClick={() => openEditStockModal(item)}>
+                            <button 
+                              className="btn btn-secondary" 
+                              style={{ padding: '0 10px', fontSize: '14px' }} 
+                              disabled={submittingId === item.id || item.isAdminGlobal} 
+                              onClick={() => openEditStockModal(item)}
+                              title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
+                            >
                               Edit Stock/Price
                             </button>
-                            <button className="btn btn-danger" style={{ padding: '0 10px', fontSize: '14px' }} disabled={submittingId === item.id} onClick={() => handleDeleteStock(item.id)}>
+                            <button 
+                              className="btn btn-danger" 
+                              style={{ padding: '0 10px', fontSize: '14px' }} 
+                              disabled={submittingId === item.id || item.isAdminGlobal} 
+                              onClick={() => handleDeleteStock(item.id)}
+                              title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
+                            >
                               {submittingId === item.id ? 'Removing...' : 'Delete'}
                             </button>
                           </div>
@@ -809,24 +854,54 @@ export default function SalesmanDashboardClient({ salesman }) {
             ) : (
               <div>
                 <div className="mobile-header" style={{ position: 'static', padding: '16px 0', borderBottom: 'none', background: 'none' }}>
-                  <button className="back-btn" onClick={() => { setSelectedCompanyId(null); setSearchQuery(''); window.scrollTo(0, 0); }} style={{ marginLeft: '-12px' }}>
+                  <button className="back-btn" onClick={() => { setSelectedCompanyId(null); setSearchQuery(''); setPreviewPage(1); window.scrollTo(0, 0); }} style={{ marginLeft: '-12px' }}>
                     ←
                   </button>
                   <span className="mobile-header-title">{selectedCompany?.companyName} Stock</span>
                 </div>
 
+                <div style={{ marginBottom: '20px', position: 'relative', maxWidth: '600px' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    style={{ width: '100%', padding: '12px 48px 12px 16px', fontSize: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', outline: 'none' }}
+                    placeholder="🔍 Search medicines by name or manufacturer..."
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setPreviewPage(1);
+                    }}
+                  />
+                  {searchQuery !== debouncedSearchQuery && (
+                    <div style={{ position: 'absolute', right: '16px', top: '14px', display: 'flex', alignItems: 'center' }}>
+                      <span className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px', borderTopColor: 'var(--primary)', margin: 0 }}></span>
+                    </div>
+                  )}
+                </div>
+
                 <div style={{ maxWidth: '600px', marginTop: '12px' }}>
-                  {selectedCompany?.stockItems.length === 0 ? (
+                  {filteredPreviewStock.length === 0 ? (
                     <div className="empty-state">
                       <div className="empty-icon">📦</div>
-                      <p>This company has not posted any products yet.</p>
+                      <p>
+                        {selectedCompany?.stockItems.length === 0 
+                          ? 'This company has not posted any products yet.' 
+                          : 'No matching medicines found.'}
+                      </p>
                     </div>
                   ) : (
-                    selectedCompany?.stockItems.map((item) => (
+                    paginatedPreviewStock.map((item) => (
                       <div key={item.id} className={`stock-card ${item.quantity === 0 ? 'out-of-stock' : ''}`}>
                         <div className="stock-header">
                           <div>
-                            <div className="stock-title">{item.name}</div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <div className="stock-title" style={{ fontWeight: '700', fontSize: '18px' }}>{item.name}</div>
+                              {item.isAdminGlobal && (
+                                <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
+                                  🌐 Shared Stock
+                                </span>
+                              )}
+                            </div>
                             <div className="stock-qty">
                               {item.quantity > 0 ? `Stock: ${item.quantity} strips available` : 'Product Out of Stock'}
                             </div>
@@ -854,6 +929,35 @@ export default function SalesmanDashboardClient({ salesman }) {
                     ))
                   )}
                 </div>
+
+                {/* Pagination Controls */}
+                {previewTotalPages > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '20px', paddingBottom: '20px', maxWidth: '600px' }}>
+                    <button 
+                      className="btn btn-secondary" 
+                      disabled={previewPage <= 1}
+                      onClick={() => {
+                        setPreviewPage(prev => Math.max(1, prev - 1));
+                        window.scrollTo(0, 0);
+                      }}
+                    >
+                      ◀ Previous
+                    </button>
+                    <span style={{ fontWeight: '600', color: 'var(--text-muted)' }}>
+                      Page {previewPage} of {previewTotalPages}
+                    </span>
+                    <button 
+                      className="btn btn-secondary" 
+                      disabled={previewPage >= previewTotalPages}
+                      onClick={() => {
+                        setPreviewPage(prev => Math.min(previewTotalPages, prev + 1));
+                        window.scrollTo(0, 0);
+                      }}
+                    >
+                      Next ▶
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

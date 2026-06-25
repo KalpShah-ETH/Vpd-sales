@@ -16,11 +16,26 @@ export async function GET() {
   }
 
   try {
-    const stockItems = await prisma.stockItem.findMany({
+    const ownItems = await prisma.stockItem.findMany({
       where: { salesmanId: salesman.id },
       orderBy: { name: 'asc' }
     });
-    return NextResponse.json(stockItems);
+
+    const globalSalesman = await prisma.salesman.findUnique({
+      where: { username: 'admin_global' }
+    });
+
+    const globalItems = globalSalesman ? await prisma.stockItem.findMany({
+      where: { salesmanId: globalSalesman.id },
+      orderBy: { name: 'asc' }
+    }) : [];
+
+    const merged = [
+      ...ownItems.map(item => ({ ...item, isAdminGlobal: false })),
+      ...globalItems.map(item => ({ ...item, isAdminGlobal: true }))
+    ].sort((a, b) => a.name.localeCompare(b.name));
+
+    return NextResponse.json(merged);
   } catch (error) {
     console.error('Fetch salesman stock error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

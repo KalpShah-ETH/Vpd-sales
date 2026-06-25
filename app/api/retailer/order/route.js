@@ -125,11 +125,10 @@ export async function POST(request) {
     }
 
     // Construct pre-filled WhatsApp message
-    let message = `Hello, I am ${dbRetailer.shopName}.\nI want to order the following items from ${salesman.companyName}:\n`;
+    let message = `${dbRetailer.shopName}\n`;
     for (const res of orderResults) {
-      message += `- *${res.stockItem.name}* x ${res.qty} strips\n`;
+      message += `${res.stockItem.name} x ${res.qty}\n`;
     }
-    message += `\nPlease confirm and deliver.`;
 
     // Construct the wa.me pre-filled link
     const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;

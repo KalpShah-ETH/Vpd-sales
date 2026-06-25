@@ -111,15 +111,20 @@ async function runTests() {
   assert.ok(companyAlpha, 'Company Alpha should be in catalog');
   
   // Fetch detailed catalog for Company Alpha
-  const detailResAlpha = await fetch(`${BASE_URL}/api/retailer/browse?companyId=${companyAlpha.id}`, {
+  const detailResAlpha = await fetch(`${BASE_URL}/api/retailer/browse?companyId=${companyAlpha.id}&search=${encodeURIComponent(medNameX)}`, {
     headers: { 'Cookie': adminSessionCookie }
   });
   const detailAlpha = await detailResAlpha.json();
   const medAlphaX = detailAlpha.stockItems.find(i => i.name === medNameX);
   assert.ok(medAlphaX, 'Company Alpha should contain Unified Medicine X');
   assert.strictEqual(medAlphaX.isAdminGlobal, true, 'Unified Medicine X should be marked as global');
-  const alphaMeds = detailAlpha.stockItems.map(i => i.name);
-  assert.ok(alphaMeds.includes(medNameY), 'Company Alpha should contain Unified Medicine Y');
+
+  const detailResAlphaY = await fetch(`${BASE_URL}/api/retailer/browse?companyId=${companyAlpha.id}&search=${encodeURIComponent(medNameY)}`, {
+    headers: { 'Cookie': adminSessionCookie }
+  });
+  const detailAlphaY = await detailResAlphaY.json();
+  const medAlphaY = detailAlphaY.stockItems.find(i => i.name === medNameY);
+  assert.ok(medAlphaY, 'Company Alpha should contain Unified Medicine Y');
   console.log('✓ Verified: Company Alpha received the stock upload with isAdminGlobal flag');
 
   // Verify Company Beta
@@ -127,15 +132,20 @@ async function runTests() {
   assert.ok(companyBeta, 'Company Beta should be in catalog');
 
   // Fetch detailed catalog for Company Beta
-  const detailResBeta = await fetch(`${BASE_URL}/api/retailer/browse?companyId=${companyBeta.id}`, {
+  const detailResBeta = await fetch(`${BASE_URL}/api/retailer/browse?companyId=${companyBeta.id}&search=${encodeURIComponent(medNameX)}`, {
     headers: { 'Cookie': adminSessionCookie }
   });
   const detailBeta = await detailResBeta.json();
   const medBetaX = detailBeta.stockItems.find(i => i.name === medNameX);
   assert.ok(medBetaX, 'Company Beta should contain Unified Medicine X');
   assert.strictEqual(medBetaX.isAdminGlobal, true, 'Unified Medicine X should be marked as global');
-  const betaMeds = detailBeta.stockItems.map(i => i.name);
-  assert.ok(betaMeds.includes(medNameY), 'Company Beta should contain Unified Medicine Y');
+
+  const detailResBetaY = await fetch(`${BASE_URL}/api/retailer/browse?companyId=${companyBeta.id}&search=${encodeURIComponent(medNameY)}`, {
+    headers: { 'Cookie': adminSessionCookie }
+  });
+  const detailBetaY = await detailResBetaY.json();
+  const medBetaY = detailBetaY.stockItems.find(i => i.name === medNameY);
+  assert.ok(medBetaY, 'Company Beta should contain Unified Medicine Y');
   console.log('✓ Verified: Company Beta received the stock upload with isAdminGlobal flag');
 
   // Cleanup: Delete both test salesmen

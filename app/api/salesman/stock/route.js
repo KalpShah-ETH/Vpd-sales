@@ -9,43 +9,44 @@ async function checkSalesmanAuth() {
   return await validateSession(cookieStore, 'salesman_session', 'salesman');
 }
 
-export async function GET() {
+export async function GET(request) {
   const salesman = await checkSalesmanAuth();
   if (!salesman) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page')) || 1;
+    const search = searchParams.get('search') || '';
+    const limit = 50;
+    const skip = (page - 1) * limit;
+
+    const ownWhere = { salesmanId: salesman.id };
+    if (search) {
+      ownWhere.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { mfg: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
     const ownItems = await prisma.stockItem.findMany({
-      where: { salesmanId: salesman.id },
+      where: ownWhere,
       orderBy: { name: 'asc' }
     });
 
-    const globalSalesman = await prisma.salesman.findUnique({
-      where: { username: 'admin_global' }
+    const merged = ownItems.map(item => ({ ...item, isAdminGlobal: false }));
+
+    const totalItems = merged.length;
+    const totalPages = Math.ceil(totalItems / limit);
+    const paginated = merged.slice(skip, skip + limit);
+
+    return NextResponse.json({
+      items: paginated,
+      totalItems,
+      totalPages,
+      page
     });
-
-    const globalItems = globalSalesman ? await prisma.stockItem.findMany({
-      where: { salesmanId: globalSalesman.id },
-      orderBy: { name: 'asc' }
-    }) : [];
-
-    const getUniquenessKey = (name, mfg, pack) => {
-      const cleanName = (name || '').trim().toLowerCase();
-      const cleanMfg = (mfg || '').trim().toLowerCase();
-      const cleanPack = (pack || '').trim().toLowerCase();
-      return `${cleanName}|${cleanMfg}|${cleanPack}`;
-    };
-
-    const ownKeys = new Set(ownItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
-    const filteredGlobalItems = globalItems.filter(item => !ownKeys.has(getUniquenessKey(item.name, item.mfg, item.pack)));
-
-    const merged = [
-      ...ownItems.map(item => ({ ...item, isAdminGlobal: false })),
-      ...filteredGlobalItems.map(item => ({ ...item, isAdminGlobal: true }))
-    ].sort((a, b) => a.name.localeCompare(b.name));
-
-    return NextResponse.json(merged);
   } catch (error) {
     console.error('Fetch salesman stock error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

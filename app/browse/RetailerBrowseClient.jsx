@@ -17,6 +17,7 @@ export default function RetailerBrowseClient({ shopName }) {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [bgVersion, setBgVersion] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [companyLoadingId, setCompanyLoadingId] = useState(null);
   const ITEMS_PER_PAGE = 50;
 
@@ -24,7 +25,7 @@ export default function RetailerBrowseClient({ shopName }) {
     if (companyLoadingId) return;
     setCompanyLoadingId(companyId);
     try {
-      const res = await fetch(`/api/retailer/browse?companyId=${companyId}`);
+      const res = await fetch(`/api/retailer/browse?companyId=${companyId}&page=1&search=`);
       if (res.ok) {
         const data = await res.json();
         setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
@@ -32,6 +33,7 @@ export default function RetailerBrowseClient({ shopName }) {
         setSearchQuery('');
         setDebouncedSearchQuery('');
         setCurrentPage(1);
+        setTotalPages(data.totalPages);
         window.scrollTo(0, 0);
       } else {
         showToast('Failed to load company catalogue');
@@ -44,11 +46,39 @@ export default function RetailerBrowseClient({ shopName }) {
     }
   };
 
+  const fetchCompanyStock = async (companyId, page, search) => {
+    try {
+      const res = await fetch(`/api/retailer/browse?companyId=${companyId}&page=${page}&search=${encodeURIComponent(search)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
+        setTotalPages(data.totalPages);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
-    fetchSettings();
-    if (typeof window !== 'undefined' && sessionStorage.getItem('last_order_placed') === 'true') {
-      showToast('Order successfully saved!');
-      sessionStorage.removeItem('last_order_placed');
+    if (selectedCompanyId) {
+      fetchCompanyStock(selectedCompanyId, currentPage, debouncedSearchQuery);
+    }
+  }, [selectedCompanyId, currentPage, debouncedSearchQuery]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const cached = sessionStorage.getItem('bgVersion');
+      if (cached) {
+        setBgVersion(cached);
+      } else {
+        fetchSettings();
+      }
+      if (sessionStorage.getItem('last_order_placed') === 'true') {
+        showToast('Order successfully saved!');
+        sessionStorage.removeItem('last_order_placed');
+      }
+    } else {
+      fetchSettings();
     }
   }, []);
 
@@ -71,6 +101,9 @@ export default function RetailerBrowseClient({ shopName }) {
         const data = await res.json();
         if (data.RETAILER_BG_VERSION) {
           setBgVersion(data.RETAILER_BG_VERSION);
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem('bgVersion', data.RETAILER_BG_VERSION);
+          }
         }
       }
     } catch (err) {
@@ -128,22 +161,9 @@ export default function RetailerBrowseClient({ shopName }) {
     return catalog.find(c => c.id === selectedCompanyId);
   }, [catalog, selectedCompanyId]);
 
-  const filteredStockItems = useMemo(() => {
-    if (!company?.stockItems) return [];
-    if (!debouncedSearchQuery) return company.stockItems;
-    const q = debouncedSearchQuery.toLowerCase();
-    return company.stockItems.filter(item => 
-      item.name.toLowerCase().includes(q) ||
-      (item.mfg && item.mfg.toLowerCase().includes(q))
-    );
-  }, [company?.stockItems, debouncedSearchQuery]);
-
-  const totalPages = Math.ceil(filteredStockItems.length / ITEMS_PER_PAGE);
-
   const paginatedStockItems = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredStockItems.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredStockItems, currentPage]);
+    return company?.stockItems || [];
+  }, [company?.stockItems]);
 
   // Adjust quantity
   const handleQtyChange = (itemId, change, maxQty) => {

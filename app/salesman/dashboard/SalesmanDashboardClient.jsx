@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
 
 export default function SalesmanDashboardClient({ salesman }) {
   const router = useRouter();
@@ -19,12 +18,16 @@ export default function SalesmanDashboardClient({ salesman }) {
   // UI state
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', isError: false });
+  const [dataLoaded, setDataLoaded] = useState(false);
   const [stockSearchQuery, setStockSearchQuery] = useState('');
+  const [debouncedStockSearchQuery, setDebouncedStockSearchQuery] = useState('');
   const [stockPage, setStockPage] = useState(1);
+  const [stockTotalPages, setStockTotalPages] = useState(1);
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [previewPage, setPreviewPage] = useState(1);
+  const [previewTotalPages, setPreviewTotalPages] = useState(1);
   const [orderStatusFilter, setOrderStatusFilter] = useState('ALL'); // ALL, PENDING, FULFILLED
   const [submittingId, setSubmittingId] = useState(null);
   const [companyLoadingId, setCompanyLoadingId] = useState(null);
@@ -33,13 +36,15 @@ export default function SalesmanDashboardClient({ salesman }) {
     if (companyLoadingId) return;
     setCompanyLoadingId(companyId);
     try {
-      const res = await fetch(`/api/retailer/browse?companyId=${companyId}`);
+      const res = await fetch(`/api/retailer/browse?companyId=${companyId}&page=1&search=`);
       if (res.ok) {
         const data = await res.json();
         setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
         setSelectedCompanyId(companyId);
         setSearchQuery('');
+        setDebouncedSearchQuery('');
         setPreviewPage(1);
+        setPreviewTotalPages(data.totalPages || 1);
         window.scrollTo(0, 0);
       } else {
         showToast('Failed to load company catalogue');
@@ -103,6 +108,13 @@ export default function SalesmanDashboardClient({ salesman }) {
   }, [searchQuery]);
 
   useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedStockSearchQuery(stockSearchQuery);
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [stockSearchQuery]);
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('login') === 'success') {
@@ -110,10 +122,26 @@ export default function SalesmanDashboardClient({ salesman }) {
         router.replace('/salesman/dashboard');
       }
     }
-    fetchStock();
-    fetchOrders();
-    fetchRetailers();
+    Promise.all([
+      fetchStock(1, ''),
+      fetchOrders(),
+      fetchRetailers()
+    ]).finally(() => {
+      setDataLoaded(true);
+    });
   }, []);
+
+  useEffect(() => {
+    if (dataLoaded) {
+      fetchStock(stockPage, debouncedStockSearchQuery);
+    }
+  }, [stockPage, debouncedStockSearchQuery, dataLoaded]);
+
+  useEffect(() => {
+    if (selectedCompanyId) {
+      fetchCompanyStock(selectedCompanyId, previewPage, debouncedSearchQuery);
+    }
+  }, [selectedCompanyId, previewPage, debouncedSearchQuery]);
 
   useEffect(() => {
     if (activeTab === 'preview') fetchCatalog();
@@ -168,16 +196,30 @@ export default function SalesmanDashboardClient({ salesman }) {
   };
 
   // API Call: Fetch stock items
-  const fetchStock = async () => {
+  const fetchStock = async (page = stockPage, search = debouncedStockSearchQuery) => {
     try {
-      const res = await fetch('/api/salesman/stock');
+      const res = await fetch(`/api/salesman/stock?page=${page}&search=${encodeURIComponent(search)}`);
       if (res.ok) {
         const data = await res.json();
-        setStockItems(data);
+        setStockItems(data.items || []);
+        setStockTotalPages(data.totalPages || 1);
       }
     } catch (err) {
       console.error(err);
       showErrorToast('Failed to load data. Please refresh.');
+    }
+  };
+
+  const fetchCompanyStock = async (companyId, page, search) => {
+    try {
+      const res = await fetch(`/api/retailer/browse?companyId=${companyId}&page=${page}&search=${encodeURIComponent(search)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
+        setPreviewTotalPages(data.totalPages || 1);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -243,7 +285,7 @@ export default function SalesmanDashboardClient({ salesman }) {
 
       showToast(isEditing ? 'Product details updated!' : 'Product added to catalogue!');
       setIsStockModalOpen(false);
-      fetchStock();
+      fetchStock(stockPage, debouncedStockSearchQuery);
       fetchCatalog(); // Refresh preview catalog too
     } catch (err) {
       showErrorToast(err.message);
@@ -264,7 +306,7 @@ export default function SalesmanDashboardClient({ salesman }) {
           const res = await fetch(`/api/salesman/stock?id=${id}`, { method: 'DELETE' });
           if (!res.ok) throw new Error('Failed to delete');
           showToast('Product removed from catalogue');
-          fetchStock();
+          fetchStock(stockPage, debouncedStockSearchQuery);
           fetchCatalog(); // Refresh preview catalog too
         } catch (err) {
           showErrorToast(err.message);
@@ -297,29 +339,35 @@ export default function SalesmanDashboardClient({ salesman }) {
     }
   };
 
-  const handleCsvFileChange = (e) => {
+  const handleCsvFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setCsvFileName(file.name);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        // Parse sheet to JSON array (2D array of rows)
-        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-        const parsed = parseExcelContent(rows);
-        setCsvItems(parsed);
-      } catch (err) {
-        console.error(err);
-        showErrorToast('Failed to parse file. Make sure it is a valid CSV or XLSX file.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
+    try {
+      const XLSX = await import('xlsx');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = new Uint8Array(event.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          // Parse sheet to JSON array (2D array of rows)
+          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+          const parsed = parseExcelContent(rows);
+          setCsvItems(parsed);
+        } catch (err) {
+          console.error(err);
+          showErrorToast('Failed to parse file. Make sure it is a valid CSV or XLSX file.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } catch (err) {
+      console.error(err);
+      showErrorToast('Failed to load file reader library.');
+    }
   };
 
   const parseExcelContent = (rows) => {
@@ -395,7 +443,10 @@ export default function SalesmanDashboardClient({ salesman }) {
       setIsCsvModalOpen(false);
       setCsvItems([]);
       setCsvFileName('');
-      fetchStock();
+      setStockPage(1);
+      setStockSearchQuery('');
+      setDebouncedStockSearchQuery('');
+      fetchStock(1, '');
       fetchCatalog();
     } catch (err) {
       showErrorToast(err.message);
@@ -441,43 +492,13 @@ export default function SalesmanDashboardClient({ salesman }) {
     return catalog.find(c => c.id === selectedCompanyId);
   }, [catalog, selectedCompanyId]);
 
-  const ITEMS_PER_PAGE = 50;
-
-  const filteredStock = useMemo(() => {
-    let result = stockItems;
-    if (stockSearchQuery) {
-      const query = stockSearchQuery.toLowerCase();
-      result = result.filter(item => 
-        item.name.toLowerCase().includes(query) ||
-        (item.mfg && item.mfg.toLowerCase().includes(query))
-      );
-    }
-    return result;
-  }, [stockItems, stockSearchQuery]);
-
-  const stockTotalPages = Math.ceil(filteredStock.length / ITEMS_PER_PAGE);
-
   const paginatedStock = useMemo(() => {
-    const start = (stockPage - 1) * ITEMS_PER_PAGE;
-    return filteredStock.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredStock, stockPage]);
-
-  const filteredPreviewStock = useMemo(() => {
-    if (!selectedCompany?.stockItems) return [];
-    if (!debouncedSearchQuery) return selectedCompany.stockItems;
-    const q = debouncedSearchQuery.toLowerCase();
-    return selectedCompany.stockItems.filter(item => 
-      item.name.toLowerCase().includes(q) ||
-      (item.mfg && item.mfg.toLowerCase().includes(q))
-    );
-  }, [selectedCompany?.stockItems, debouncedSearchQuery]);
-
-  const previewTotalPages = Math.ceil(filteredPreviewStock.length / ITEMS_PER_PAGE);
+    return stockItems;
+  }, [stockItems]);
 
   const paginatedPreviewStock = useMemo(() => {
-    const start = (previewPage - 1) * ITEMS_PER_PAGE;
-    return filteredPreviewStock.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredPreviewStock, previewPage]);
+    return selectedCompany?.stockItems || [];
+  }, [selectedCompany?.stockItems]);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -493,6 +514,15 @@ export default function SalesmanDashboardClient({ salesman }) {
     }
     return result;
   }, [orders, orderSearchQuery, orderStatusFilter]);
+
+  if (!dataLoaded) {
+    return (
+      <div className="loader-container">
+        <div className="spinner"></div>
+        <p style={{ fontWeight: '600', color: 'var(--text-muted)' }}>Loading Dashboard...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-grid">
@@ -634,7 +664,7 @@ export default function SalesmanDashboardClient({ salesman }) {
             </div>
 
             <div className="table-container" style={{ paddingBottom: stockTotalPages > 1 ? '80px' : '0px' }}>
-              {filteredStock.length === 0 ? (
+              {stockItems.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">📦</div>
                   <p>{stockSearchQuery ? 'No matching products found.' : 'Your catalogue is empty.'}</p>
@@ -658,11 +688,6 @@ export default function SalesmanDashboardClient({ salesman }) {
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                               <div style={{ fontWeight: '600', fontSize: '16px' }}>{item.name}</div>
-                              {item.isAdminGlobal && (
-                                <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
-                                  🌐 Shared Stock
-                                </span>
-                              )}
                             </div>
                           </td>
                           <td style={{ fontWeight: '600', color: 'var(--text-muted)' }}>{item.mfg || '-'}</td>
@@ -677,18 +702,16 @@ export default function SalesmanDashboardClient({ salesman }) {
                               <button 
                                 className="btn btn-secondary" 
                                 style={{ padding: '0 10px', fontSize: '14px' }} 
-                                disabled={submittingId === item.id || item.isAdminGlobal} 
+                                disabled={submittingId === item.id} 
                                 onClick={() => openEditStockModal(item)}
-                                title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
                               >
                                 Edit Stock/Price
                               </button>
                               <button 
                                 className="btn btn-danger" 
                                 style={{ padding: '0 10px', fontSize: '14px' }} 
-                                disabled={submittingId === item.id || item.isAdminGlobal} 
+                                disabled={submittingId === item.id} 
                                 onClick={() => handleDeleteStock(item.id)}
-                                title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
                               >
                                 {submittingId === item.id ? 'Removing...' : 'Delete'}
                               </button>
@@ -704,11 +727,6 @@ export default function SalesmanDashboardClient({ salesman }) {
                       <div key={item.id} className={`mobile-card ${item.quantity === 0 ? 'out-of-stock' : ''}`} style={item.quantity === 0 ? { opacity: 0.6 } : {}}>
                         <div className="mobile-card-header">
                           <span style={{ fontWeight: '700', fontSize: '16px' }}>{item.name}</span>
-                          {item.isAdminGlobal && (
-                            <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
-                              🌐 Shared Stock
-                            </span>
-                          )}
                         </div>
                         <div className="mobile-card-body">
                           <div><strong>Mfg:</strong> {item.mfg || '-'}</div>
@@ -719,18 +737,16 @@ export default function SalesmanDashboardClient({ salesman }) {
                           <button 
                             className="btn btn-secondary" 
                             style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
-                            disabled={submittingId === item.id || item.isAdminGlobal} 
+                            disabled={submittingId === item.id} 
                             onClick={() => openEditStockModal(item)}
-                            title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
                           >
                             Edit
                           </button>
                           <button 
                             className="btn btn-danger" 
                             style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
-                            disabled={submittingId === item.id || item.isAdminGlobal} 
+                            disabled={submittingId === item.id} 
                             onClick={() => handleDeleteStock(item.id)}
-                            title={item.isAdminGlobal ? "Shared Admin Stock is read-only" : ""}
                           >
                             {submittingId === item.id ? 'Removing...' : 'Delete'}
                           </button>
@@ -980,11 +996,11 @@ export default function SalesmanDashboardClient({ salesman }) {
                 </div>
 
                 <div style={{ maxWidth: '600px', marginTop: '12px', paddingBottom: previewTotalPages > 1 ? '80px' : '20px' }}>
-                  {filteredPreviewStock.length === 0 ? (
+                  {paginatedPreviewStock.length === 0 ? (
                     <div className="empty-state">
                       <div className="empty-icon">📦</div>
                       <p>
-                        {selectedCompany?.stockItems.length === 0 
+                        {selectedCompany?.stockItems?.length === 0 
                           ? 'This company has not posted any products yet.' 
                           : 'No matching medicines found.'}
                       </p>

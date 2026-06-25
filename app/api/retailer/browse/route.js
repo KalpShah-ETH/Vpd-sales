@@ -77,24 +77,39 @@ export async function GET(request) {
       return NextResponse.json(result);
     }
 
+    const page = parseInt(searchParams.get('page')) || 1;
+    const search = searchParams.get('search') || '';
+    const limit = 50;
+    const skip = (page - 1) * limit;
+
+    const ownItemsWhere = { salesmanId: parseInt(targetCompanyId) };
+    if (search) {
+      ownItemsWhere.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { mfg: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    const ownItems = await prisma.stockItem.findMany({
+      where: ownItemsWhere,
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        quantity: true,
+        mfg: true,
+        pack: true
+      },
+      orderBy: { name: 'asc' }
+    });
+
     const company = await prisma.salesman.findFirst({
       where: whereClause,
       select: {
         id: true,
         name: true,
         companyName: true,
-        phone: true,
-        stockItems: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            quantity: true,
-            mfg: true,
-            pack: true
-          },
-          orderBy: { name: 'asc' }
-        }
+        phone: true
       }
     });
 
@@ -103,23 +118,31 @@ export async function GET(request) {
     }
 
     const globalSalesman = await prisma.salesman.findUnique({
-      where: { username: 'admin_global' },
-      include: {
-        stockItems: {
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            quantity: true,
-            mfg: true,
-            pack: true
-          },
-          orderBy: { name: 'asc' }
-        }
-      }
+      where: { username: 'admin_global' }
     });
 
-    const globalItems = (globalSalesman?.stockItems || []).map(item => ({
+    const globalItemsWhere = { salesmanId: globalSalesman?.id || -1 };
+    if (search) {
+      globalItemsWhere.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { mfg: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    const globalItemsRaw = globalSalesman ? await prisma.stockItem.findMany({
+      where: globalItemsWhere,
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        quantity: true,
+        mfg: true,
+        pack: true
+      },
+      orderBy: { name: 'asc' }
+    }) : [];
+
+    const globalItems = globalItemsRaw.map(item => ({
       ...item,
       isAdminGlobal: true
     }));
@@ -131,15 +154,25 @@ export async function GET(request) {
       return `${cleanName}|${cleanMfg}|${cleanPack}`;
     };
 
-    const ownKeys = new Set(company.stockItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
+    const ownKeys = new Set(ownItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
     const filteredGlobalItems = globalItems.filter(item => !ownKeys.has(getUniquenessKey(item.name, item.mfg, item.pack)));
     
-    const mergedCompany = {
-      ...company,
-      stockItems: [...company.stockItems, ...filteredGlobalItems].sort((a, b) => a.name.localeCompare(b.name))
-    };
+    const merged = [
+      ...ownItems.map(item => ({ ...item, isAdminGlobal: false })),
+      ...filteredGlobalItems
+    ].sort((a, b) => a.name.localeCompare(b.name));
 
-    return NextResponse.json(mergedCompany);
+    const totalItems = merged.length;
+    const totalPages = Math.ceil(totalItems / limit);
+    const paginated = merged.slice(skip, skip + limit);
+
+    return NextResponse.json({
+      company,
+      stockItems: paginated,
+      totalItems,
+      totalPages,
+      page
+    });
   } catch (error) {
     console.error('Fetch catalog error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

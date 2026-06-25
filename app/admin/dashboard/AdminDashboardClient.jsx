@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import * as XLSX from 'xlsx';
 
 export default function AdminDashboardClient() {
   const router = useRouter();
@@ -31,19 +30,22 @@ export default function AdminDashboardClient() {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [previewPage, setPreviewPage] = useState(1);
+  const [previewTotalPages, setPreviewTotalPages] = useState(1);
   const [companyLoadingId, setCompanyLoadingId] = useState(null);
 
   const handleSelectCompany = async (companyId) => {
     if (companyLoadingId) return;
     setCompanyLoadingId(companyId);
     try {
-      const res = await fetch(`/api/retailer/browse?companyId=${companyId}`);
+      const res = await fetch(`/api/retailer/browse?companyId=${companyId}&page=1&search=`);
       if (res.ok) {
         const data = await res.json();
         setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
         setSelectedCompanyId(companyId);
         setSearchQuery('');
+        setDebouncedSearchQuery('');
         setPreviewPage(1);
+        setPreviewTotalPages(data.totalPages || 1);
         window.scrollTo(0, 0);
       } else {
         showToast('Failed to load company catalogue');
@@ -53,6 +55,19 @@ export default function AdminDashboardClient() {
       showToast('Error connecting to database');
     } finally {
       setCompanyLoadingId(null);
+    }
+  };
+
+  const fetchCompanyStock = async (companyId, page, search) => {
+    try {
+      const res = await fetch(`/api/retailer/browse?companyId=${companyId}&page=${page}&search=${encodeURIComponent(search)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
+        setPreviewTotalPages(data.totalPages || 1);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
   
@@ -137,6 +152,12 @@ export default function AdminDashboardClient() {
   }, []);
 
   useEffect(() => {
+    if (selectedCompanyId) {
+      fetchCompanyStock(selectedCompanyId, previewPage, debouncedSearchQuery);
+    }
+  }, [selectedCompanyId, previewPage, debouncedSearchQuery]);
+
+  useEffect(() => {
     if (activeTab === 'retailers') fetchRetailers();
     if (activeTab === 'orders') fetchOrders();
     if (activeTab === 'preview') fetchCatalog();
@@ -157,29 +178,35 @@ export default function AdminDashboardClient() {
     }, 3000);
   };
 
-  const handleCsvFileChange = (e) => {
+  const handleCsvFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     setCsvFileName(file.name);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = new Uint8Array(event.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-        
-        // Parse sheet to JSON array (2D array of rows)
-        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
-        const parsed = parseExcelContent(rows);
-        setCsvItems(parsed);
-      } catch (err) {
-        console.error(err);
-        showErrorToast('Failed to parse file. Make sure it is a valid CSV or XLSX file.');
-      }
-    };
-    reader.readAsArrayBuffer(file);
+    try {
+      const XLSX = await import('xlsx');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = new Uint8Array(event.target.result);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          
+          // Parse sheet to JSON array (2D array of rows)
+          const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+          const parsed = parseExcelContent(rows);
+          setCsvItems(parsed);
+        } catch (err) {
+          console.error(err);
+          showErrorToast('Failed to parse file. Make sure it is a valid CSV or XLSX file.');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } catch (err) {
+      console.error(err);
+      showErrorToast('Failed to load file reader library.');
+    }
   };
 
   const parseExcelContent = (rows) => {
@@ -695,24 +722,9 @@ export default function AdminDashboardClient() {
     return catalog.find(c => c.id === selectedCompanyId);
   }, [catalog, selectedCompanyId]);
 
-  const ITEMS_PER_PAGE = 50;
-
-  const filteredPreviewStock = useMemo(() => {
-    if (!selectedCompany?.stockItems) return [];
-    if (!debouncedSearchQuery) return selectedCompany.stockItems;
-    const q = debouncedSearchQuery.toLowerCase();
-    return selectedCompany.stockItems.filter(item => 
-      item.name.toLowerCase().includes(q) ||
-      (item.mfg && item.mfg.toLowerCase().includes(q))
-    );
-  }, [selectedCompany?.stockItems, debouncedSearchQuery]);
-
-  const previewTotalPages = Math.ceil(filteredPreviewStock.length / ITEMS_PER_PAGE);
-
   const paginatedPreviewStock = useMemo(() => {
-    const start = (previewPage - 1) * ITEMS_PER_PAGE;
-    return filteredPreviewStock.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredPreviewStock, previewPage]);
+    return selectedCompany?.stockItems || [];
+  }, [selectedCompany?.stockItems]);
 
   return (
     <div className="dashboard-grid">
@@ -893,9 +905,7 @@ export default function AdminDashboardClient() {
                         <th>Company Representing</th>
                         <th>WhatsApp Routing</th>
                         <th>Username (Phone)</th>
-                        <th>Catalogue Stats</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th style={{ textAlign: 'center' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -911,16 +921,8 @@ export default function AdminDashboardClient() {
                           </td>
                           <td style={{ fontFamily: 'monospace' }}>{salesman.phone}</td>
                           <td style={{ fontWeight: '500' }}>{salesman.username}</td>
-                          <td style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
-                            📦 {salesman._count.stockItems} items | 🧾 {salesman._count.orders} orders
-                          </td>
                           <td>
-                            <span className={`badge ${salesman.active ? 'badge-success' : 'badge-warning'}`}>
-                              {salesman.active ? 'Active' : 'Deactivated'}
-                            </span>
-                          </td>
-                          <td>
-                            <div style={{ display: 'flex', gap: '8px' }}>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                               <button 
                                 className={`btn ${salesman.active ? 'btn-secondary' : 'btn-primary'}`} 
                                 style={{ padding: '0 10px', fontSize: '14px' }}
@@ -960,14 +962,10 @@ export default function AdminDashboardClient() {
                       <div key={salesman.id} className="mobile-card">
                         <div className="mobile-card-header">
                           <span style={{ fontWeight: '700', fontSize: '16px' }}>{salesman.name}</span>
-                          <span className={`badge ${salesman.active ? 'badge-success' : 'badge-warning'}`}>
-                            {salesman.active ? 'Active' : 'Deactivated'}
-                          </span>
                         </div>
                         <div className="mobile-card-body">
                           <div><strong>Company:</strong> {salesman.companyName}</div>
                           <div><strong>Phone (Username):</strong> {salesman.phone}</div>
-                          <div><strong>Stats:</strong> 📦 {salesman._count.stockItems} items | 🧾 {salesman._count.orders} orders</div>
                         </div>
                         <div className="mobile-card-actions">
                           <button 
@@ -1262,37 +1260,29 @@ export default function AdminDashboardClient() {
                   <table className="data-table">
                     <thead>
                       <tr>
-                        <th>Order ID</th>
-                        <th>Retailer (Shop Name)</th>
+                        <th>Shop Name</th>
                         <th>Pharma Company</th>
-                        <th>Product Ordered</th>
                         <th>Routing Status</th>
-                        <th>Timestamp</th>
+                        <th>Time</th>
                       </tr>
                     </thead>
                     <tbody>
                       {orders.map((order) => (
                         <tr key={order.id}>
-                          <td style={{ fontFamily: 'monospace', fontWeight: 'bold' }}>#{order.id}</td>
                           <td>
                             <div style={{ fontWeight: '600' }}>{order.retailer?.shopName}</div>
                             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
                               📞 <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a>
                             </div>
                           </td>
-                          <td>
-                            <span className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
-                              {order.salesman?.companyName}
-                            </span>
+                          <td style={{ textTransform: 'uppercase', fontWeight: '500' }}>
+                            {order.salesman?.companyName}
                           </td>
-                          <td>{order.productName}</td>
-                          <td>
-                            <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
-                              {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
-                            </span>
+                          <td style={{ color: order.status === 'FULFILLED' ? 'var(--success)' : 'var(--warning)', fontWeight: '600' }}>
+                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
                           </td>
                           <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                            {new Date(order.createdAt).toLocaleString()}
+                            {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </td>
                         </tr>
                       ))}
@@ -1302,18 +1292,11 @@ export default function AdminDashboardClient() {
                   <div className="mobile-card-list">
                     {orders.map((order) => (
                       <div key={order.id} className="mobile-card">
-                        <div className="mobile-card-header">
-                          <span style={{ fontWeight: '700', fontSize: '15px' }}>#{order.id}</span>
-                          <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
-                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending'}
-                          </span>
-                        </div>
                         <div className="mobile-card-body">
                           <div><strong>Shop Name:</strong> {order.retailer?.shopName}</div>
-                          <div><strong>Phone:</strong> <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a></div>
-                          <div><strong>Pharma Company:</strong> <span className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>{order.salesman?.companyName}</span></div>
-                          <div><strong>Product:</strong> {order.productName}</div>
-                          <div><strong>Time:</strong> {new Date(order.createdAt).toLocaleString()}</div>
+                          <div><strong>Pharma Company:</strong> <span style={{ textTransform: 'uppercase', fontWeight: '500' }}>{order.salesman?.companyName}</span></div>
+                          <div><strong>Routing Status:</strong> <span style={{ color: order.status === 'FULFILLED' ? 'var(--success)' : 'var(--warning)', fontWeight: '600' }}>{order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending'}</span></div>
+                          <div><strong>Time:</strong> {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                         </div>
                       </div>
                     ))}
@@ -1399,11 +1382,11 @@ export default function AdminDashboardClient() {
                 </div>
 
                 <div style={{ maxWidth: '600px', marginTop: '12px', paddingBottom: previewTotalPages > 1 ? '80px' : '20px' }}>
-                  {filteredPreviewStock.length === 0 ? (
+                  {paginatedPreviewStock.length === 0 ? (
                     <div className="empty-state">
                       <div className="empty-icon">📦</div>
                       <p>
-                        {selectedCompany?.stockItems.length === 0 
+                        {selectedCompany?.stockItems?.length === 0 
                           ? 'This company has not posted any products yet.' 
                           : 'No matching medicines found.'}
                       </p>

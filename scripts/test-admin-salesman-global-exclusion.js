@@ -68,8 +68,8 @@ async function runTests() {
   const initialStockCount = targetSalesman1._count.stockItems;
   console.log(`Initial stock count: ${initialStockCount}`);
 
-  // 4. Upload global stock
-  console.log('\nTest 4: Admin uploading shared stock...');
+  const medA = 'Exclusive Global Med A ' + Math.floor(Math.random() * 1000000);
+  const medB = 'Exclusive Global Med B ' + Math.floor(Math.random() * 1000000);
   const bulkStockRes = await fetch(`${BASE_URL}/api/admin/salesman/bulk-stock`, {
     method: 'POST',
     headers: {
@@ -78,8 +78,8 @@ async function runTests() {
     },
     body: JSON.stringify({
       items: [
-        { name: 'Exclusive Global Med A', mfg: 'Global Mfg', pack: '10s', quantity: 15 },
-        { name: 'Exclusive Global Med B', mfg: 'Global Mfg', pack: '10s', quantity: 20 }
+        { name: medA, mfg: 'Global Mfg', pack: '10s', quantity: 15 },
+        { name: medB, mfg: 'Global Mfg', pack: '10s', quantity: 20 }
       ]
     })
   });

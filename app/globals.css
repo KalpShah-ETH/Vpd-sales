@@ -1,5 +1,4 @@
-/* Google Font import for Inter */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* Google Font is loaded optimized in layout.js via next/font/google */
 
 :root {
   /* Premium HSL Color Palette - White and Green Theme */

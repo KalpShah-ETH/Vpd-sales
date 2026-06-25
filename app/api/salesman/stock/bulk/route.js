@@ -23,28 +23,34 @@ export async function POST(request) {
     // 1. Get existing items for this salesman
     const existingItems = await prisma.stockItem.findMany({
       where: { salesmanId: salesman.id },
-      select: { name: true }
+      select: { name: true, mfg: true, pack: true }
     });
 
-    const existingNames = new Set(existingItems.map(item => item.name.trim().toLowerCase()));
+    const getUniquenessKey = (name, mfg, pack) => {
+      const cleanName = (name || '').trim().toLowerCase();
+      const cleanMfg = (mfg || '').trim().toLowerCase();
+      const cleanPack = (pack || '').trim().toLowerCase();
+      return `${cleanName}|${cleanMfg}|${cleanPack}`;
+    };
+
+    const existingKeys = new Set(existingItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
 
     // 2. Filter new items
     const newItems = [];
     let skippedCount = 0;
 
     for (const item of items) {
-      if (!item.name || item.price === undefined || item.quantity === undefined) {
+      if (!item.name || item.quantity === undefined) {
         continue;
       }
-      const trimmedName = item.name.trim();
-      const lowerName = trimmedName.toLowerCase();
+      const uniquenessKey = getUniquenessKey(item.name, item.mfg, item.pack);
 
-      if (existingNames.has(lowerName)) {
+      if (existingKeys.has(uniquenessKey)) {
         skippedCount++;
         continue;
       }
 
-      const numPrice = parseFloat(item.price);
+      const numPrice = item.price !== undefined && item.price !== '' ? parseFloat(item.price) : 0.0;
       const numQty = parseInt(item.quantity);
 
       if (isNaN(numPrice) || numPrice < 0 || isNaN(numQty) || numQty < 0) {
@@ -52,13 +58,15 @@ export async function POST(request) {
       }
 
       newItems.push({
-        name: trimmedName,
+        name: item.name.trim(),
         price: numPrice,
         quantity: numQty,
+        mfg: item.mfg ? item.mfg.trim() : null,
+        pack: item.pack ? item.pack.trim() : null,
         salesmanId: salesman.id
       });
       // Add to set to prevent duplicates within the uploaded batch itself
-      existingNames.add(lowerName);
+      existingKeys.add(uniquenessKey);
     }
 
     // 3. Bulk insert if there are any new items

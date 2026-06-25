@@ -16,6 +16,8 @@ export default function RetailerBrowseClient({ shopName }) {
   const [cart, setCart] = useState([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [bgVersion, setBgVersion] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 50;
 
   useEffect(() => {
     fetchSettings();
@@ -27,7 +29,7 @@ export default function RetailerBrowseClient({ shopName }) {
 
   useEffect(() => {
     if (bgVersion) {
-      document.body.style.backgroundImage = `url('/retailer-bg.jpg?v=${bgVersion}')`;
+      document.body.style.backgroundImage = `url('/api/retailer/bg-image?v=${bgVersion}')`;
       document.body.style.backgroundSize = 'cover';
       document.body.style.backgroundPosition = 'center';
       document.body.style.backgroundAttachment = 'fixed';
@@ -60,12 +62,6 @@ export default function RetailerBrowseClient({ shopName }) {
 
   useEffect(() => {
     fetchCatalog();
-
-    const interval = setInterval(() => {
-      fetchCatalog(true);
-    }, 4000);
-
-    return () => clearInterval(interval);
   }, []);
 
   const showToast = (message) => {
@@ -111,8 +107,18 @@ export default function RetailerBrowseClient({ shopName }) {
     if (!company?.stockItems) return [];
     if (!debouncedSearchQuery) return company.stockItems;
     const q = debouncedSearchQuery.toLowerCase();
-    return company.stockItems.filter(item => item.name.toLowerCase().includes(q));
+    return company.stockItems.filter(item => 
+      item.name.toLowerCase().includes(q) ||
+      (item.mfg && item.mfg.toLowerCase().includes(q))
+    );
   }, [company?.stockItems, debouncedSearchQuery]);
+
+  const totalPages = Math.ceil(filteredStockItems.length / ITEMS_PER_PAGE);
+
+  const paginatedStockItems = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredStockItems.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredStockItems, currentPage]);
 
   // Adjust quantity
   const handleQtyChange = (itemId, change, maxQty) => {
@@ -299,6 +305,7 @@ export default function RetailerBrowseClient({ shopName }) {
                       setSelectedCompanyId(company.id);
                       setSearchQuery('');
                       setDebouncedSearchQuery('');
+                      setCurrentPage(1);
                       window.scrollTo(0, 0);
                     }}
                   >
@@ -348,9 +355,12 @@ export default function RetailerBrowseClient({ shopName }) {
               type="text"
               className="form-input"
               style={{ width: '100%', padding: '12px 48px 12px 16px', fontSize: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', outline: 'none' }}
-              placeholder="🔍 Search medicines..."
+              placeholder="🔍 Search medicines by name or manufacturer..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
             />
             {searchQuery !== debouncedSearchQuery && (
               <div style={{ position: 'absolute', right: '16px', top: '14px', display: 'flex', alignItems: 'center' }}>
@@ -370,7 +380,7 @@ export default function RetailerBrowseClient({ shopName }) {
                 </p>
               </div>
             ) : (
-              filteredStockItems.map((item) => {
+              paginatedStockItems.map((item) => {
                 const qtySelected = quantities[item.id] || 1;
                 const isOutOfStock = item.quantity <= 0;
 
@@ -387,6 +397,18 @@ export default function RetailerBrowseClient({ shopName }) {
                           {isOutOfStock 
                             ? <span style={{ color: 'var(--danger)', fontWeight: '800' }}>🚫 SOLD OUT</span> 
                             : `🟢 Available Stock: ${item.quantity} strips`}
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px', fontSize: '13px' }}>
+                          {item.mfg && (
+                            <span style={{ backgroundColor: 'var(--bg-primary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                              🏭 {item.mfg}
+                            </span>
+                          )}
+                          {item.pack && (
+                            <span style={{ backgroundColor: 'var(--bg-primary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                              📦 Pack: {item.pack}
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="stock-price" style={{ fontSize: '20px' }}>
@@ -425,8 +447,8 @@ export default function RetailerBrowseClient({ shopName }) {
                               if (val < 1) val = 1;
                               if (val > item.quantity) val = item.quantity;
                               setQuantities({
-                                ...quantities,
-                                [item.id]: val
+                                  ...quantities,
+                                  [item.id]: val
                               });
                             }}
                             onBlur={() => {
@@ -475,7 +497,7 @@ export default function RetailerBrowseClient({ shopName }) {
                       >
                         {isOutOfStock 
                           ? 'SOLD OUT' 
-                          : `Add ${qtySelected || 1} strips to Cart`}
+                          : `Add ${qtySelected || 1} ${(qtySelected || 1) === 1 ? 'strip' : 'strips'} to Cart`}
                       </button>
                     </div>
                   </div>
@@ -483,6 +505,35 @@ export default function RetailerBrowseClient({ shopName }) {
               })
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '20px', paddingBottom: '20px' }}>
+              <button 
+                className="btn btn-secondary" 
+                disabled={currentPage <= 1}
+                onClick={() => {
+                  setCurrentPage(prev => Math.max(1, prev - 1));
+                  window.scrollTo(0, 0);
+                }}
+              >
+                ◀ Previous
+              </button>
+              <span style={{ fontWeight: '600', color: 'var(--text-muted)' }}>
+                Page {currentPage} of {totalPages}
+              </span>
+              <button 
+                className="btn btn-secondary" 
+                disabled={currentPage >= totalPages}
+                onClick={() => {
+                  setCurrentPage(prev => Math.min(totalPages, prev + 1));
+                  window.scrollTo(0, 0);
+                }}
+              >
+                Next ▶
+              </button>
+            </div>
+          )}
         </div>
       )}
 

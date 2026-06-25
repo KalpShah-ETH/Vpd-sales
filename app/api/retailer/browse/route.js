@@ -45,7 +45,9 @@ export async function GET() {
             id: true,
             name: true,
             price: true,
-            quantity: true
+            quantity: true,
+            mfg: true,
+            pack: true
           },
           orderBy: { name: 'asc' }
         }

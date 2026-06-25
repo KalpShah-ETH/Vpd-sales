@@ -34,13 +34,13 @@ export async function POST(request) {
   }
 
   try {
-    const { name, price, quantity } = await request.json();
+    const { name, price, quantity, mfg, pack } = await request.json();
 
-    if (!name || price === undefined || quantity === undefined) {
-      return NextResponse.json({ error: 'Name, price, and quantity are required' }, { status: 400 });
+    if (!name || quantity === undefined) {
+      return NextResponse.json({ error: 'Name and quantity are required' }, { status: 400 });
     }
 
-    const numPrice = parseFloat(price);
+    const numPrice = price !== undefined && price !== '' ? parseFloat(price) : 0.0;
     const numQty = parseInt(quantity);
 
     if (isNaN(numPrice) || numPrice < 0) {
@@ -55,6 +55,8 @@ export async function POST(request) {
         name: name.trim(),
         price: numPrice,
         quantity: numQty,
+        mfg: mfg ? mfg.trim() : null,
+        pack: pack ? pack.trim() : null,
         salesmanId: salesman.id
       }
     });
@@ -73,7 +75,7 @@ export async function PUT(request) {
   }
 
   try {
-    const { id, name, price, quantity } = await request.json();
+    const { id, name, price, quantity, mfg, pack } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: 'Stock item ID is required' }, { status: 400 });
@@ -92,7 +94,7 @@ export async function PUT(request) {
     if (name) updateData.name = name.trim();
     
     if (price !== undefined) {
-      const numPrice = parseFloat(price);
+      const numPrice = price !== '' ? parseFloat(price) : 0.0;
       if (isNaN(numPrice) || numPrice < 0) {
         return NextResponse.json({ error: 'Price must be a valid non-negative number' }, { status: 400 });
       }
@@ -105,6 +107,14 @@ export async function PUT(request) {
         return NextResponse.json({ error: 'Quantity must be a valid non-negative integer' }, { status: 400 });
       }
       updateData.quantity = numQty;
+    }
+
+    if (mfg !== undefined) {
+      updateData.mfg = mfg ? mfg.trim() : null;
+    }
+
+    if (pack !== undefined) {
+      updateData.pack = pack ? pack.trim() : null;
     }
 
     const item = await prisma.stockItem.update({

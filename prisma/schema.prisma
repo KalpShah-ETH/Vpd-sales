@@ -43,8 +43,10 @@ model Retailer {
 model StockItem {
   id         Int      @id @default(autoincrement())
   name       String
-  price      Float
+  price      Float    @default(0.0)
   quantity   Int
+  mfg        String?
+  pack       String?
   salesmanId Int
   salesman   Salesman @relation(fields: [salesmanId], references: [id], onDelete: Cascade)
 

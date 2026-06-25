@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 
 export default function SalesmanDashboardClient({ salesman }) {
   const router = useRouter();
@@ -19,7 +20,9 @@ export default function SalesmanDashboardClient({ salesman }) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', isError: false });
   const [stockSearchQuery, setStockSearchQuery] = useState('');
+  const [stockPage, setStockPage] = useState(1);
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('ALL'); // ALL, PENDING, FULFILLED
   const [submittingId, setSubmittingId] = useState(null);
 
@@ -57,27 +60,31 @@ export default function SalesmanDashboardClient({ salesman }) {
   const [stockForm, setStockForm] = useState({
     name: '',
     price: '',
-    quantity: ''
+    quantity: '',
+    mfg: '',
+    pack: ''
   });
 
   // Preview tab state
   const [selectedCompanyId, setSelectedCompanyId] = useState(null);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('login') === 'success') {
+        showToast('Logged in successfully!');
+        router.replace('/salesman/dashboard');
+      }
+    }
     fetchStock();
     fetchOrders();
-    fetchCatalog();
     fetchRetailers();
-
-    const interval = setInterval(() => {
-      fetchStock();
-      fetchOrders();
-    }, 4000);
-
-    return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'preview') fetchCatalog();
+  }, [activeTab]);
 
   const fetchRetailers = async () => {
     try {
@@ -173,8 +180,7 @@ export default function SalesmanDashboardClient({ salesman }) {
   const handleLogout = async () => {
     try {
       await fetch('/api/salesman/login', { method: 'DELETE' });
-      setShowLogoutModal(false);
-      router.push('/?role=salesman');
+      router.push('/?role=salesman&logout=success');
     } catch (err) {
       console.error(err);
       showErrorToast('Logout failed');
@@ -265,70 +271,76 @@ export default function SalesmanDashboardClient({ salesman }) {
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const text = event.target.result;
-      const parsed = parseCsvContent(text);
-      setCsvItems(parsed);
+      try {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Parse sheet to JSON array (2D array of rows)
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        const parsed = parseExcelContent(rows);
+        setCsvItems(parsed);
+      } catch (err) {
+        console.error(err);
+        showErrorToast('Failed to parse file. Make sure it is a valid CSV or XLSX file.');
+      }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
-  const parseCsvContent = (text) => {
-    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line !== '');
-    if (lines.length === 0) return [];
+  const parseExcelContent = (rows) => {
+    if (rows.length === 0) return [];
 
-    const parsedLines = lines.map(line => {
-      const result = [];
-      let current = '';
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-        if (char === '"' || char === "'") {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          result.push(current.trim());
-          current = '';
-        } else {
-          current += char;
-        }
+    // Find headers
+    const firstRow = rows[0].map(cell => String(cell).trim().toLowerCase());
+    
+    let mfgIdx = -1;
+    let nameIdx = -1;
+    let packIdx = -1;
+    let qtyIdx = -1;
+
+    firstRow.forEach((cell, idx) => {
+      if (cell.includes('mfg') || cell.includes('manufacturer')) {
+        mfgIdx = idx;
+      } else if (cell.includes('item name') || cell.includes('name') || cell.includes('medicine') || cell.includes('product')) {
+        nameIdx = idx;
+      } else if (cell.includes('pack')) {
+        packIdx = idx;
+      } else if (cell.includes('qty') || cell.includes('quantity') || cell.includes('stock')) {
+        qtyIdx = idx;
       }
-      result.push(current.trim());
-      return result;
     });
 
-    if (parsedLines.length === 0) return [];
-
-    const firstRow = parsedLines[0];
-    const hasHeaders = firstRow.some(cell => {
-      const c = cell.toLowerCase();
-      return c.includes('name') || c.includes('price') || c.includes('qty') || c.includes('quantity') || c.includes('stock');
-    });
-
-    let nameIdx = 0, priceIdx = 1, qtyIdx = 2;
-    let startIndex = 0;
-
-    if (hasHeaders) {
-      startIndex = 1;
-      firstRow.forEach((cell, idx) => {
-        const c = cell.toLowerCase();
-        if (c.includes('name') || c.includes('medicine') || c.includes('product') || c.includes('description')) {
-          nameIdx = idx;
-        } else if (c.includes('price') || c.includes('rate') || c.includes('cost') || c.includes('mrp')) {
-          priceIdx = idx;
-        } else if (c.includes('qty') || c.includes('quantity') || c.includes('stock') || c.includes('units') || c.includes('count')) {
-          qtyIdx = idx;
-        }
-      });
-    }
+    // Fallbacks if headers are missing
+    if (nameIdx === -1) nameIdx = 1; // Default to column 2
+    if (mfgIdx === -1) mfgIdx = 0;   // Default to column 1
+    if (packIdx === -1) packIdx = 2;  // Default to column 3
+    if (qtyIdx === -1) qtyIdx = 3;    // Default to column 4
 
     const items = [];
-    for (let i = startIndex; i < parsedLines.length; i++) {
-      const row = parsedLines[i];
-      if (row.length <= Math.max(nameIdx, priceIdx, qtyIdx)) continue;
-      const name = row[nameIdx];
-      const price = parseFloat(row[priceIdx]);
-      const quantity = parseInt(row[qtyIdx]);
-      if (name && !isNaN(price) && !isNaN(quantity)) {
-        items.push({ name, price, quantity });
+    // Start from row 1 (index 1) to skip headers if we found them
+    const startIndex = 1; 
+
+    for (let i = startIndex; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length === 0) continue;
+
+      const name = row[nameIdx] ? String(row[nameIdx]).trim() : '';
+      const mfg = mfgIdx !== -1 && row[mfgIdx] ? String(row[mfgIdx]).trim() : '';
+      const pack = packIdx !== -1 && row[packIdx] ? String(row[packIdx]).trim() : '';
+      const quantityVal = qtyIdx !== -1 ? row[qtyIdx] : 0;
+      
+      const quantity = parseInt(quantityVal);
+
+      if (name && !isNaN(quantity)) {
+        items.push({
+          name,
+          mfg,
+          pack,
+          quantity,
+          price: 0.0
+        });
       }
     }
     return items;
@@ -344,7 +356,7 @@ export default function SalesmanDashboardClient({ salesman }) {
         body: JSON.stringify({ items: csvItems })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to upload CSV');
+      if (!res.ok) throw new Error(data.error || 'Failed to upload items');
 
       showToast(`Uploaded successfully! Added ${data.inserted} new medicines, skipped ${data.skipped} duplicates.`);
       setIsCsvModalOpen(false);
@@ -361,7 +373,7 @@ export default function SalesmanDashboardClient({ salesman }) {
 
   const openAddStockModal = () => {
     setEditingItem(null);
-    setStockForm({ name: '', price: '', quantity: '' });
+    setStockForm({ name: '', price: '', quantity: '', mfg: '', pack: '' });
     setIsStockModalOpen(true);
   };
 
@@ -369,8 +381,10 @@ export default function SalesmanDashboardClient({ salesman }) {
     setEditingItem(item);
     setStockForm({
       name: item.name,
-      price: item.price.toString(),
-      quantity: item.quantity.toString()
+      price: item.price !== undefined ? item.price.toString() : '0',
+      quantity: item.quantity.toString(),
+      mfg: item.mfg || '',
+      pack: item.pack || ''
     });
     setIsStockModalOpen(true);
   };
@@ -394,11 +408,26 @@ export default function SalesmanDashboardClient({ salesman }) {
     return catalog.find(c => c.id === selectedCompanyId);
   }, [catalog, selectedCompanyId]);
 
+  const ITEMS_PER_PAGE = 50;
+
   const filteredStock = useMemo(() => {
-    if (!stockSearchQuery) return stockItems;
-    const query = stockSearchQuery.toLowerCase();
-    return stockItems.filter(item => item.name.toLowerCase().includes(query));
+    let result = stockItems;
+    if (stockSearchQuery) {
+      const query = stockSearchQuery.toLowerCase();
+      result = result.filter(item => 
+        item.name.toLowerCase().includes(query) ||
+        (item.mfg && item.mfg.toLowerCase().includes(query))
+      );
+    }
+    return result;
   }, [stockItems, stockSearchQuery]);
+
+  const stockTotalPages = Math.ceil(filteredStock.length / ITEMS_PER_PAGE);
+
+  const paginatedStock = useMemo(() => {
+    const start = (stockPage - 1) * ITEMS_PER_PAGE;
+    return filteredStock.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredStock, stockPage]);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -494,8 +523,14 @@ export default function SalesmanDashboardClient({ salesman }) {
             <button 
               className="sidebar-link" 
               onClick={() => {
-                setShowLogoutModal(true);
                 setIsSidebarOpen(false);
+                triggerConfirm(
+                  'Confirm Logout',
+                  'Are you sure you want to log out of your Salesman session?',
+                  handleLogout,
+                  true,
+                  'Log Out'
+                );
               }} 
               style={{ color: 'var(--danger)' }}
             >
@@ -525,7 +560,7 @@ export default function SalesmanDashboardClient({ salesman }) {
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn btn-secondary" onClick={() => setIsCsvModalOpen(true)}>
-                  📄 Upload CSV
+                  📄 Upload CSV/XLSX
                 </button>
                 <button className="btn btn-primary" onClick={openAddStockModal}>
                   ➕ Add Product
@@ -539,9 +574,12 @@ export default function SalesmanDashboardClient({ salesman }) {
                 type="text"
                 className="form-input"
                 style={{ width: '100%' }}
-                placeholder="Search by product name..."
+                placeholder="Search by product name or manufacturer..."
                 value={stockSearchQuery}
-                onChange={(e) => setStockSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setStockSearchQuery(e.target.value);
+                  setStockPage(1);
+                }}
               />
             </div>
 
@@ -557,23 +595,23 @@ export default function SalesmanDashboardClient({ salesman }) {
                   <thead>
                     <tr>
                       <th>Product Name</th>
-                      <th>Price per Strip</th>
-                      <th>Stock Quantity</th>
-                      <th>Status</th>
+                      <th>Mfg</th>
+                      <th>Qty.</th>
+                      <th>Pack</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredStock.map((item) => (
+                    {paginatedStock.map((item) => (
                       <tr key={item.id} className={item.quantity === 0 ? 'out-of-stock' : ''} style={item.quantity === 0 ? { opacity: 0.6 } : {}}>
                         <td>
                           <div style={{ fontWeight: '600', fontSize: '16px' }}>{item.name}</div>
                         </td>
-                        <td style={{ fontWeight: '600' }}>₹{item.price.toFixed(2)}</td>
+                        <td style={{ fontWeight: '600', color: 'var(--text-muted)' }}>{item.mfg || '-'}</td>
                         <td style={{ fontWeight: '600' }}>{item.quantity} strips</td>
                         <td>
-                          <span className={`badge ${item.quantity > 0 ? 'badge-success' : 'badge-warning'}`}>
-                            {item.quantity > 0 ? 'In Stock' : 'Out of Stock'}
+                          <span className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
+                            {item.pack || '-'}
                           </span>
                         </td>
                         <td>
@@ -592,6 +630,29 @@ export default function SalesmanDashboardClient({ salesman }) {
                 </table>
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {stockTotalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '16px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  disabled={stockPage <= 1}
+                  onClick={() => setStockPage(prev => Math.max(1, prev - 1))}
+                >
+                  ◀ Previous
+                </button>
+                <span style={{ fontWeight: '600' }}>
+                  Page {stockPage} of {stockTotalPages}
+                </span>
+                <button 
+                  className="btn btn-secondary" 
+                  disabled={stockPage >= stockTotalPages}
+                  onClick={() => setStockPage(prev => Math.min(stockTotalPages, prev + 1))}
+                >
+                  Next ▶
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -748,7 +809,7 @@ export default function SalesmanDashboardClient({ salesman }) {
             ) : (
               <div>
                 <div className="mobile-header" style={{ position: 'static', padding: '16px 0', borderBottom: 'none', background: 'none' }}>
-                  <button className="back-btn" onClick={() => setSelectedCompanyId(null)} style={{ marginLeft: '-12px' }}>
+                  <button className="back-btn" onClick={() => { setSelectedCompanyId(null); setSearchQuery(''); window.scrollTo(0, 0); }} style={{ marginLeft: '-12px' }}>
                     ←
                   </button>
                   <span className="mobile-header-title">{selectedCompany?.companyName} Stock</span>
@@ -768,6 +829,18 @@ export default function SalesmanDashboardClient({ salesman }) {
                             <div className="stock-title">{item.name}</div>
                             <div className="stock-qty">
                               {item.quantity > 0 ? `Stock: ${item.quantity} strips available` : 'Product Out of Stock'}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px', fontSize: '13px' }}>
+                              {item.mfg && (
+                                <span style={{ backgroundColor: 'var(--bg-primary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                                  🏭 {item.mfg}
+                                </span>
+                              )}
+                              {item.pack && (
+                                <span style={{ backgroundColor: 'var(--bg-primary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
+                                  📦 Pack: {item.pack}
+                                </span>
+                              )}
                             </div>
                           </div>
                           <div className="stock-price">₹{item.price.toFixed(2)}</div>
@@ -946,12 +1019,33 @@ export default function SalesmanDashboardClient({ salesman }) {
                 <input
                   type="number"
                   step="0.01"
-                  min="0.01"
+                  min="0.00"
                   className="form-input"
-                  required
                   value={stockForm.price}
                   onChange={(e) => setStockForm({ ...stockForm, price: e.target.value })}
-                  placeholder="e.g. 150.00"
+                  placeholder="e.g. 150.00 (optional)"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Manufacturer (Mfg)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={stockForm.mfg}
+                  onChange={(e) => setStockForm({ ...stockForm, mfg: e.target.value })}
+                  placeholder="e.g. Cipla, GSK"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Pack Size</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={stockForm.pack}
+                  onChange={(e) => setStockForm({ ...stockForm, pack: e.target.value })}
+                  placeholder="e.g. 10 strips, 10x10"
                 />
               </div>
 
@@ -1001,15 +1095,15 @@ export default function SalesmanDashboardClient({ salesman }) {
             
             <div style={{ padding: '8px 0' }}>
               <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '16px', lineHeight: '1.5' }}>
-                Upload a CSV file containing your stock catalog. The system will look for column headers like <strong>Name</strong>, <strong>Price</strong>, and <strong>Quantity</strong>. 
-                If headers are missing, we default to: Column 1 = Name, Column 2 = Price, Column 3 = Quantity. Duplicates will be skipped automatically.
+                Upload a CSV or XLSX file containing your stock catalog. The system will look for column headers like <strong>mfg</strong>, <strong>item name</strong>, <strong>pack</strong>, and <strong>Qty.</strong>. 
+                If headers are missing, we default to: Column 1 = Mfg, Column 2 = Item Name, Column 3 = Pack, Column 4 = Qty. Duplicates will be skipped automatically.
               </p>
               
               <div className="form-group" style={{ border: '2px dashed var(--border-color)', padding: '24px', borderRadius: 'var(--radius-md)', textAlign: 'center', backgroundColor: 'var(--bg-primary)', marginBottom: '16px' }}>
                 <input
                   type="file"
                   id="csv-file-input"
-                  accept=".csv"
+                  accept=".csv,.xlsx"
                   onChange={handleCsvFileChange}
                   style={{ display: 'none' }}
                 />
@@ -1017,7 +1111,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                   htmlFor="csv-file-input" 
                   style={{ cursor: 'pointer', display: 'block', fontWeight: '600', color: 'var(--primary)' }}
                 >
-                  {csvFileName ? `📄 Selected: ${csvFileName}` : '📂 Click to choose a CSV file'}
+                  {csvFileName ? `📄 Selected: ${csvFileName}` : '📂 Click to choose a CSV/XLSX file'}
                 </label>
                 {csvFileName && (
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
@@ -1035,19 +1129,28 @@ export default function SalesmanDashboardClient({ salesman }) {
                     <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', fontWeight: '700' }}>
+                          <th style={{ padding: '6px' }}>Mfg</th>
                           <th style={{ padding: '6px' }}>Medicine Name</th>
-                          <th style={{ padding: '6px' }}>Price</th>
+                          <th style={{ padding: '6px' }}>Pack</th>
                           <th style={{ padding: '6px' }}>Quantity</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {csvItems.map((item, idx) => (
+                        {csvItems.slice(0, 100).map((item, idx) => (
                           <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '6px', color: 'var(--text-muted)' }}>{item.mfg}</td>
                             <td style={{ padding: '6px', fontWeight: '500' }}>{item.name}</td>
-                            <td style={{ padding: '6px' }}>₹{item.price.toFixed(2)}</td>
+                            <td style={{ padding: '6px' }}>{item.pack}</td>
                             <td style={{ padding: '6px' }}>{item.quantity}</td>
                           </tr>
                         ))}
+                        {csvItems.length > 100 && (
+                          <tr>
+                            <td colSpan="4" style={{ padding: '8px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                              ... and {csvItems.length - 100} more items
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1088,36 +1191,6 @@ export default function SalesmanDashboardClient({ salesman }) {
         </div>
       )}
 
-      {/* MODAL: Logout Confirmation */}
-      {showLogoutModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '380px', textAlign: 'center', padding: '32px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚪</div>
-            <h2 className="modal-title" style={{ marginBottom: '12px' }}>Confirm Logout</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginBottom: '24px', lineHeight: '1.5' }}>
-              Are you sure you want to log out of your Salesman session?
-            </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
-                style={{ flex: 1 }} 
-                onClick={() => setShowLogoutModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                type="button" 
-                className="btn btn-danger" 
-                style={{ flex: 1 }} 
-                onClick={handleLogout}
-              >
-                Okay
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Shared Confirm Modal */}
       <ConfirmModal
@@ -1141,7 +1214,7 @@ export default function SalesmanDashboardClient({ salesman }) {
 }
 
 // SHARED GENERIC CONFIRM MODAL COMPONENT
-function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', isDanger = false }) {
+function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Log Out', isDanger = false }) {
   if (!isOpen) return null;
   return (
     <div className="modal-overlay">

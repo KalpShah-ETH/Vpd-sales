@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { writeFile } from 'fs/promises';
-import { join } from 'path';
 import prisma from '@/lib/db';
 import { validateSession } from '@/lib/auth';
 
@@ -24,16 +22,43 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
+    const mimeType = file.type || '';
+    const filename = file.name || '';
+    const extension = filename.slice(filename.lastIndexOf('.')).toLowerCase();
+
+    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png'];
+
+    if (!allowedMimeTypes.includes(mimeType) && !allowedExtensions.includes(extension)) {
+      return NextResponse.json({ error: 'Invalid file type. Only JPG, JPEG, and PNG images are supported.' }, { status: 400 });
+    }
+
+    let finalMime = mimeType;
+    if (!allowedMimeTypes.includes(finalMime)) {
+      if (extension === '.png') {
+        finalMime = 'image/png';
+      } else {
+        finalMime = 'image/jpeg';
+      }
+    }
+
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const base64String = Buffer.from(bytes).toString('base64');
 
-    // Save to public directory
-    const publicDir = join(process.cwd(), 'public');
-    const path = join(publicDir, 'retailer-bg.jpg');
+    // Save to database settings
+    await prisma.setting.upsert({
+      where: { key: 'RETAILER_BG_DATA' },
+      update: { value: base64String },
+      create: { key: 'RETAILER_BG_DATA', value: base64String }
+    });
 
-    await writeFile(path, buffer);
+    await prisma.setting.upsert({
+      where: { key: 'RETAILER_BG_MIME' },
+      update: { value: finalMime },
+      create: { key: 'RETAILER_BG_MIME', value: finalMime }
+    });
 
-    // Update database setting
+    // Update database setting version
     const bgVersion = Date.now().toString();
     await prisma.setting.upsert({
       where: { key: 'RETAILER_BG_VERSION' },

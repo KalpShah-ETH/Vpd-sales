@@ -18,6 +18,12 @@ export default function AdminDashboardClient() {
   const [bgUploadLoading, setBgUploadLoading] = useState(false);
   const [bgUploadStatus, setBgUploadStatus] = useState('');
 
+  // Admin creation form states
+  const [adminForm, setAdminForm] = useState({ username: '', password: '' });
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [adminCreateStatus, setAdminCreateStatus] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', isError: false });
@@ -72,7 +78,6 @@ export default function AdminDashboardClient() {
   const [isSalesmanBulkUploadModalOpen, setIsSalesmanBulkUploadModalOpen] = useState(false);
   const [salesmanBulkCsvText, setSalesmanBulkCsvText] = useState('');
   const [showSalesmanPassword, setShowSalesmanPassword] = useState(false);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Host URL for links
@@ -81,6 +86,11 @@ export default function AdminDashboardClient() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setHostUrl(window.location.origin);
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('login') === 'success') {
+        showToast('Logged in successfully!');
+        router.replace('/admin/dashboard');
+      }
     }
     fetchSalesmen(); // only default tab
   }, []);
@@ -175,8 +185,7 @@ export default function AdminDashboardClient() {
   const handleLogout = async () => {
     try {
       await fetch('/api/admin/login', { method: 'DELETE' });
-      setShowLogoutModal(false);
-      router.push('/?role=admin');
+      router.push('/?role=admin&logout=success');
     } catch (err) {
       console.error('Logout error:', err);
       showErrorToast('Logout failed');
@@ -208,6 +217,31 @@ export default function AdminDashboardClient() {
       setBgUploadStatus(`Error: ${err.message}`);
     } finally {
       setBgUploadLoading(false);
+    }
+  };
+
+  const handleAdminCreateSubmit = async (e) => {
+    e.preventDefault();
+    setAdminLoading(true);
+    setAdminCreateStatus('');
+    try {
+      const res = await fetch('/api/admin/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(adminForm)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create admin');
+
+      setAdminCreateStatus('Admin created successfully!');
+      setAdminForm({ username: '', password: '' });
+      setShowAdminPassword(false);
+      showToast('New admin registered successfully!');
+    } catch (err) {
+      setAdminCreateStatus(`Error: ${err.message}`);
+      showErrorToast(err.message);
+    } finally {
+      setAdminLoading(false);
     }
   };
 
@@ -602,8 +636,14 @@ export default function AdminDashboardClient() {
             <button 
               className="sidebar-link" 
               onClick={() => {
-                setShowLogoutModal(true);
                 setIsSidebarOpen(false);
+                triggerConfirm(
+                  'Confirm Logout',
+                  'Are you sure you want to log out of your Admin session?',
+                  handleLogout,
+                  true,
+                  'Log Out'
+                );
               }} 
               style={{ color: 'var(--danger)' }}
             >
@@ -1069,7 +1109,7 @@ export default function AdminDashboardClient() {
                   <div className="form-group" style={{ marginBottom: '16px' }}>
                     <input 
                       type="file" 
-                      accept="image/*" 
+                      accept="image/jpeg,image/jpg,image/png" 
                       onChange={(e) => setBgFile(e.target.files[0])} 
                       className="form-input" 
                       style={{ padding: '8px' }}
@@ -1096,6 +1136,84 @@ export default function AdminDashboardClient() {
                     disabled={!bgFile || bgUploadLoading}
                   >
                     {bgUploadLoading ? 'Uploading...' : 'Save & Publish Image'}
+                  </button>
+                </form>
+              </div>
+
+              <div className="card" style={{ padding: '24px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '12px' }}>Create Admin Account</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px', lineHeight: '1.5' }}>
+                  Register a new administrator account with login credentials. Only active admins can create additional admins.
+                </p>
+
+                <form onSubmit={handleAdminCreateSubmit}>
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label className="form-label">Username</label>
+                    <input 
+                      type="text" 
+                      required
+                      placeholder="e.g. admin2"
+                      value={adminForm.username} 
+                      onChange={(e) => setAdminForm({ ...adminForm, username: e.target.value })} 
+                      className="form-input" 
+                    />
+                  </div>
+
+                  <div className="form-group" style={{ marginBottom: '16px' }}>
+                    <label className="form-label">Password</label>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <input 
+                        type={showAdminPassword ? 'text' : 'password'} 
+                        required
+                        placeholder="At least 6 characters"
+                        value={adminForm.password} 
+                        onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })} 
+                        className="form-input" 
+                        style={{ width: '100%', paddingRight: '48px' }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAdminPassword(!showAdminPassword)}
+                        style={{
+                          position: 'absolute',
+                          right: '12px',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          padding: '4px',
+                          color: 'var(--text-muted)'
+                        }}
+                      >
+                        {showAdminPassword ? (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                          </svg>
+                        ) : (
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {adminCreateStatus && (
+                    <div style={{ marginBottom: '16px', fontSize: '14px', fontWeight: '600', color: adminCreateStatus.includes('Error') ? 'var(--danger)' : 'var(--success)' }}>
+                      {adminCreateStatus}
+                    </div>
+                  )}
+
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary btn-full" 
+                    disabled={adminLoading}
+                  >
+                    {adminLoading ? 'Creating...' : 'Create Admin'}
                   </button>
                 </form>
               </div>
@@ -1352,36 +1470,6 @@ export default function AdminDashboardClient() {
         </div>
       )}
 
-      {/* MODAL: Logout Confirmation */}
-      {showLogoutModal && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '380px', textAlign: 'center', padding: '32px' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🚪</div>
-            <h2 className="modal-title" style={{ marginBottom: '12px' }}>Confirm Logout</h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: '15px', marginBottom: '24px', lineHeight: '1.5' }}>
-              Are you sure you want to log out of your Admin session?
-            </p>
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
-                style={{ flex: 1 }} 
-                onClick={() => setShowLogoutModal(false)}
-              >
-                Cancel
-              </button>
-              <button 
-                type="button" 
-                className="btn btn-danger" 
-                style={{ flex: 1 }} 
-                onClick={handleLogout}
-              >
-                Okay
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Shared Confirm Modal */}
       <ConfirmModal
@@ -1405,7 +1493,7 @@ export default function AdminDashboardClient() {
 }
 
 // SHARED GENERIC CONFIRM MODAL COMPONENT
-function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', isDanger = false }) {
+function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Log Out', isDanger = false }) {
   if (!isOpen) return null;
   return (
     <div className="modal-overlay">

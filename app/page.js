@@ -21,7 +21,16 @@ function LoginPageContent() {
     if (roleParam === 'admin' || roleParam === 'salesman') {
       setRole(roleParam);
     }
-  }, [searchParams]);
+    const logoutParam = searchParams.get('logout');
+    if (logoutParam === 'success') {
+      setSuccess('Logged out successfully');
+      // Clean url from query params to avoid showing on refresh
+      router.replace(`/?role=${roleParam || 'salesman'}`);
+      setTimeout(() => {
+        setSuccess('');
+      }, 5000);
+    }
+  }, [searchParams, router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,7 +39,7 @@ function LoginPageContent() {
     setLoading(true);
 
     const loginApiEndpoint = role === 'admin' ? '/api/admin/login' : '/api/salesman/login';
-    const redirectDashboard = role === 'admin' ? '/admin/dashboard' : '/salesman/dashboard';
+    const redirectDashboard = role === 'admin' ? '/admin/dashboard?login=success' : '/salesman/dashboard?login=success';
 
     if (role === 'salesman') {
       const cleanPhone = username.replace(/\D/g, '');
@@ -167,20 +176,7 @@ function LoginPageContent() {
           </div>
         )}
 
-        {success && (
-          <div style={{
-            backgroundColor: 'var(--success-light)',
-            color: 'var(--success)',
-            padding: '12px',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '14px',
-            marginBottom: '16px',
-            fontWeight: 500,
-            border: '1px solid var(--success)'
-          }}>
-            {success}
-          </div>
-        )}
+
 
         <form onSubmit={handleSubmit} style={{ marginBottom: '24px' }}>
           <div className="form-group">
@@ -268,6 +264,13 @@ function LoginPageContent() {
           </p>
         </div>
       </div>
+
+      {/* TOAST POPUP NOTIFICATION */}
+      {success && (
+        <div className="toast">
+          <span>✓</span> {success}
+        </div>
+      )}
     </div>
   );
 }

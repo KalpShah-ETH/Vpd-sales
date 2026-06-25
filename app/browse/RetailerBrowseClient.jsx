@@ -369,7 +369,7 @@ export default function RetailerBrowseClient({ shopName }) {
             )}
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: totalPages > 1 ? '80px' : '20px' }}>
             {filteredStockItems.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">📦</div>
@@ -505,7 +505,7 @@ export default function RetailerBrowseClient({ shopName }) {
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '20px', paddingBottom: '20px' }}>
+            <div className="mobile-pagination-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '20px', paddingBottom: '20px' }}>
               <button 
                 className="btn btn-secondary" 
                 disabled={currentPage <= 1}

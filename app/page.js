@@ -17,6 +17,9 @@ function LoginPageContent() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // Non-blocking ping call to wake up database compute node while user is on the login page
+    fetch('/api/ping').catch(() => {});
+
     const roleParam = searchParams.get('role');
     if (roleParam === 'admin' || roleParam === 'salesman') {
       setRole(roleParam);

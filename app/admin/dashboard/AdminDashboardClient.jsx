@@ -470,6 +470,11 @@ export default function AdminDashboardClient() {
           const res = await fetch(`/api/admin/salesman?id=${id}`, { method: 'DELETE' });
           if (!res.ok) throw new Error('Failed to delete');
           showToast('Salesman deleted successfully');
+          
+          // Optimistically update local states immediately
+          setSalesmen(prev => prev.filter(s => s.id !== id));
+          setCatalog(prev => prev.filter(c => c.id !== id));
+
           fetchSalesmen();
           fetchCatalog();
         } catch (err) {
@@ -915,6 +920,9 @@ export default function AdminDashboardClient() {
                                 style={{ padding: '2px 6px', fontSize: '12px' }}
                                 onClick={async () => {
                                   try {
+                                    // Optimistic update
+                                    setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, active: !salesman.active } : s));
+
                                     const res = await fetch('/api/admin/salesman', {
                                       method: 'PUT',
                                       headers: { 'Content-Type': 'application/json' },
@@ -925,6 +933,8 @@ export default function AdminDashboardClient() {
                                     fetchSalesmen();
                                     fetchCatalog();
                                   } catch (err) {
+                                    // Revert on error
+                                    setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, active: salesman.active } : s));
                                     showErrorToast(err.message);
                                   }
                                 }}
@@ -960,6 +970,9 @@ export default function AdminDashboardClient() {
                             style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }}
                             onClick={async () => {
                               try {
+                                // Optimistic update
+                                setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, active: !salesman.active } : s));
+
                                 const res = await fetch('/api/admin/salesman', {
                                   method: 'PUT',
                                   headers: { 'Content-Type': 'application/json' },
@@ -970,6 +983,8 @@ export default function AdminDashboardClient() {
                                 fetchSalesmen();
                                 fetchCatalog();
                               } catch (err) {
+                                // Revert on error
+                                setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, active: salesman.active } : s));
                                 showErrorToast(err.message);
                               }
                             }}

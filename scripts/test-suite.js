@@ -90,14 +90,35 @@ async function runTests() {
     console.log('✅ Salesman CRUD verified successfully!\n');
 
     // -------------------------------------------------------------
-    // TEST 3: Admin Retailer CRUD & Token Generation
+    // TEST 3: Salesman Login
     // -------------------------------------------------------------
-    console.log('Test 3: Admin Retailer Link & Token Gen...');
-    const createRetailerRes = await fetch(`${BASE_URL}/api/admin/retailer`, {
+    console.log('Test 3: Salesman Authentication...');
+    const salesmanLoginRes = await fetch(`${BASE_URL}/api/salesman/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: testSalesmanUsername, password: testSalesmanPassword })
+    });
+
+    if (salesmanLoginRes.status !== 200) {
+      throw new Error(`Salesman login failed with status ${salesmanLoginRes.status}`);
+    }
+
+    const salesmanCookieHeader = salesmanLoginRes.headers.get('set-cookie');
+    if (!salesmanCookieHeader) {
+      throw new Error('No Set-Cookie header returned in Salesman Login');
+    }
+    salesmanCookie = salesmanCookieHeader.split(';')[0];
+    console.log('✅ Salesman authenticated successfully!\n');
+
+    // -------------------------------------------------------------
+    // TEST 4: Salesman Retailer CRUD & Token Generation
+    // -------------------------------------------------------------
+    console.log('Test 4: Salesman Retailer Link & Token Gen...');
+    const createRetailerRes = await fetch(`${BASE_URL}/api/salesman/retailers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': adminCookie
+        'Cookie': salesmanCookie
       },
       body: JSON.stringify({
         shopName: 'Test Medical Shop',
@@ -116,27 +137,6 @@ async function runTests() {
     console.log(`- Generated Access Token: ${testRetailerToken}`);
     console.log(`- Access Link: ${BASE_URL}/r/${testRetailerToken}`);
     console.log('✅ Retailer link setup verified!\n');
-
-    // -------------------------------------------------------------
-    // TEST 4: Salesman Login
-    // -------------------------------------------------------------
-    console.log('Test 4: Salesman Authentication...');
-    const salesmanLoginRes = await fetch(`${BASE_URL}/api/salesman/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: testSalesmanUsername, password: testSalesmanPassword })
-    });
-
-    if (salesmanLoginRes.status !== 200) {
-      throw new Error(`Salesman login failed with status ${salesmanLoginRes.status}`);
-    }
-
-    const salesmanCookieHeader = salesmanLoginRes.headers.get('set-cookie');
-    if (!salesmanCookieHeader) {
-      throw new Error('No Set-Cookie header returned in Salesman Login');
-    }
-    salesmanCookie = salesmanCookieHeader.split(';')[0];
-    console.log('✅ Salesman authenticated successfully!\n');
 
     // -------------------------------------------------------------
     // TEST 5: Salesman Stock Catalogue Management

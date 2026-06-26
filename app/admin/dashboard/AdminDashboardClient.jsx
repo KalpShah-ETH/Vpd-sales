@@ -511,17 +511,15 @@ export default function AdminDashboardClient() {
     setIsSalesmanModalOpen(true);
   };
 
-  // Save Retailer (Single Create or Edit)
+  // Save Retailer (Edit Only)
   const handleRetailerSubmit = async (e) => {
     e.preventDefault();
+    if (!editingRetailer) return;
     setLoading(true);
     try {
-      const isEditing = !!editingRetailer;
       const url = '/api/admin/retailer';
-      const method = isEditing ? 'PUT' : 'POST';
-      const payload = isEditing
-        ? { id: editingRetailer.id, ...retailerForm }
-        : retailerForm;
+      const method = 'PUT';
+      const payload = { id: editingRetailer.id, ...retailerForm };
 
       const res = await fetch(url, {
         method,
@@ -532,7 +530,7 @@ export default function AdminDashboardClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save retailer');
 
-      showToast(isEditing ? 'Retailer updated successfully!' : 'Retailer created successfully!');
+      showToast('Retailer updated successfully!');
       setIsRetailerModalOpen(false);
       fetchRetailers();
     } catch (err) {
@@ -1013,18 +1011,7 @@ export default function AdminDashboardClient() {
                 <h1 className="dashboard-title">Retailer Access Links</h1>
                 <p style={{ color: 'var(--text-muted)' }}>Pre-load shop databases and generate one-click secure access URLs.</p>
               </div>
-              <div style={{ display: 'flex', gap: '12px' }}>
-                <button className="btn btn-secondary" onClick={() => setIsBulkUploadModalOpen(true)}>
-                  📥 Bulk Upload CSV
-                </button>
-                <button className="btn btn-primary" onClick={() => {
-                  setEditingRetailer(null);
-                  setRetailerForm({ shopName: '', phone: '', active: true });
-                  setIsRetailerModalOpen(true);
-                }}>
-                  ➕ Add Single Retailer
-                </button>
-              </div>
+
             </div>
 
             {/* Quick Stats Grid */}
@@ -1707,12 +1694,12 @@ export default function AdminDashboardClient() {
         </div>
       )}
 
-      {/* MODAL: Retailer Single Add */}
+      {/* MODAL: Retailer Single Edit */}
       {isRetailerModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h2 className="modal-title">Register Retailer</h2>
+              <h2 className="modal-title">Edit Retailer</h2>
               <button className="modal-close" onClick={() => setIsRetailerModalOpen(false)}>×</button>
             </div>
             
@@ -1747,46 +1734,6 @@ export default function AdminDashboardClient() {
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
                   {loading ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: Retailer Bulk Upload */}
-      {isBulkUploadModalOpen && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '600px' }}>
-            <div className="modal-header">
-              <h2 className="modal-title">Bulk Upload Retailers</h2>
-              <button className="modal-close" onClick={() => setIsBulkUploadModalOpen(false)}>×</button>
-            </div>
-            
-            <form onSubmit={handleBulkUpload}>
-              <p style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                Paste CSV or list data below. Each line should contain <strong>Shop Name, Phone Number</strong>.
-              </p>
-              
-              <div className="form-group">
-                <label className="form-label">Format: Shop Name, Phone Number</label>
-                <textarea
-                  className="form-input"
-                  style={{ width: '100%', height: '240px', padding: '12px', fontFamily: 'monospace', resize: 'vertical' }}
-                  required
-                  placeholder={`Apex Medico, 9876543210\nNational Pharmacy, 9876543211\nHealthCare Store, 9998887770`}
-                  value={bulkCsvText}
-                  onChange={(e) => setBulkCsvText(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setIsBulkUploadModalOpen(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary" disabled={loading || !bulkCsvText.trim()}>
-                  {loading ? 'Uploading & Generating Links...' : 'Upload & Generate Links'}
                 </button>
               </div>
             </form>

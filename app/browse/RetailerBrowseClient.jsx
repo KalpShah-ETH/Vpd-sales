@@ -36,11 +36,11 @@ export default function RetailerBrowseClient({ shopName }) {
         setTotalPages(data.totalPages);
         window.scrollTo(0, 0);
       } else {
-        showToast('Failed to load company catalogue');
+        showErrorToast('Failed to load company catalogue');
       }
     } catch (err) {
       console.error(err);
-      showToast('Error connecting to database');
+      showErrorToast('Error connecting to database');
     } finally {
       setCompanyLoadingId(null);
     }
@@ -143,12 +143,12 @@ export default function RetailerBrowseClient({ shopName }) {
         const data = await res.json();
         setCatalog(data);
       } else if (!silent) {
-        showToast('Failed to load catalogue. Please reload.');
+        showErrorToast('Failed to load catalogue. Please reload.');
       }
     } catch (err) {
       console.error(err);
       if (!silent) {
-        showToast('Connection error. Check internet.');
+        showErrorToast('Connection error. Check internet.');
       }
     } finally {
       setLoading(false);
@@ -385,9 +385,8 @@ export default function RetailerBrowseClient({ shopName }) {
                 setDebouncedSearchQuery('');
                 window.scrollTo(0, 0);
               }}
-              style={{ fontSize: '28px', fontWeight: 'bold' }}
             >
-              ←
+              ← Back
             </button>
             <span className="mobile-header-title">{company?.companyName}</span>
           </div>
@@ -421,7 +420,7 @@ export default function RetailerBrowseClient({ shopName }) {
                 <div className="empty-icon">📦</div>
                 <p>
                   {company?.stockItems.length === 0 
-                    ? 'No products listed in this catalogue yet.' 
+                    ? 'No medicines listed in this catalogue yet.' 
                     : 'No matching medicines found.'}
                 </p>
               </div>

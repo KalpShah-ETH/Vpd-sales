@@ -48,11 +48,11 @@ export default function AdminDashboardClient() {
         setPreviewTotalPages(data.totalPages || 1);
         window.scrollTo(0, 0);
       } else {
-        showToast('Failed to load company catalogue');
+        showErrorToast('Failed to load company catalogue');
       }
     } catch (err) {
       console.error(err);
-      showToast('Error connecting to database');
+      showErrorToast('Error connecting to database');
     } finally {
       setCompanyLoadingId(null);
     }
@@ -1059,7 +1059,7 @@ export default function AdminDashboardClient() {
               {filteredRetailers.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">🏪</div>
-                  <p>No retailers found.</p>
+                  <p>No retailers registered yet.</p>
                 </div>
               ) : (
                 <>
@@ -1357,7 +1357,7 @@ export default function AdminDashboardClient() {
               <div>
                 <div className="mobile-header" style={{ position: 'static', padding: '16px 0', borderBottom: 'none', background: 'none' }}>
                   <button className="back-btn" onClick={() => { setSelectedCompanyId(null); setSearchQuery(''); setPreviewPage(1); window.scrollTo(0, 0); }} style={{ marginLeft: '-12px' }}>
-                    ←
+                    ← Back
                   </button>
                   <span className="mobile-header-title">{selectedCompany?.companyName} Stock</span>
                 </div>
@@ -1387,7 +1387,7 @@ export default function AdminDashboardClient() {
                       <div className="empty-icon">📦</div>
                       <p>
                         {selectedCompany?.stockItems?.length === 0 
-                          ? 'This company has not posted any products yet.' 
+                          ? 'This company has not posted any medicines yet.' 
                           : 'No matching medicines found.'}
                       </p>
                     </div>
@@ -1746,7 +1746,7 @@ export default function AdminDashboardClient() {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary" disabled={loading}>
-                  {loading ? 'Saving...' : 'Save'}
+                  {loading ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </form>
@@ -1976,7 +1976,7 @@ export default function AdminDashboardClient() {
 }
 
 // SHARED GENERIC CONFIRM MODAL COMPONENT
-function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Log Out', isDanger = false }) {
+function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', isDanger = false }) {
   if (!isOpen) return null;
   return (
     <div className="modal-overlay">

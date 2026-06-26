@@ -572,8 +572,8 @@ export default function SalesmanDashboardClient({ salesman }) {
               {stockItems.length === 0 ? (
                 <div className="empty-state">
                   <div className="empty-icon">📦</div>
-                  <p>{stockSearchQuery ? 'No matching products found.' : 'Your catalogue is empty.'}</p>
-                  {!stockSearchQuery && <button className="btn btn-secondary" onClick={openAddStockModal}>Add Your First Product</button>}
+                  <p>{stockSearchQuery ? 'No matching medicines found.' : 'Your catalogue is empty.'}</p>
+                  {!stockSearchQuery && <button className="btn btn-secondary" onClick={openAddStockModal}>Add Your First Medicine</button>}
                 </div>
               ) : (
                 <>
@@ -669,17 +669,17 @@ export default function SalesmanDashboardClient({ salesman }) {
                 <button 
                   className="btn btn-secondary" 
                   disabled={stockPage <= 1}
-                  onClick={() => setStockPage(prev => Math.max(1, prev - 1))}
+                  onClick={() => { setStockPage(prev => Math.max(1, prev - 1)); window.scrollTo(0, 0); }}
                 >
                   ◀ Previous
                 </button>
-                <span style={{ fontWeight: '600' }}>
+                <span style={{ fontWeight: '600', color: 'var(--text-muted)' }}>
                   Page {stockPage} of {stockTotalPages}
                 </span>
                 <button 
                   className="btn btn-secondary" 
                   disabled={stockPage >= stockTotalPages}
-                  onClick={() => setStockPage(prev => Math.min(stockTotalPages, prev + 1))}
+                  onClick={() => { setStockPage(prev => Math.min(stockTotalPages, prev + 1)); window.scrollTo(0, 0); }}
                 >
                   Next ▶
                 </button>
@@ -1170,7 +1170,7 @@ export default function SalesmanDashboardClient({ salesman }) {
 }
 
 // SHARED GENERIC CONFIRM MODAL COMPONENT
-function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Log Out', isDanger = false }) {
+function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText = 'Confirm', isDanger = false }) {
   if (!isOpen) return null;
   return (
     <div className="modal-overlay">

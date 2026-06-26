@@ -31,7 +31,7 @@ function LoginPageContent() {
       router.replace(`/?role=${roleParam || 'salesman'}`);
       setTimeout(() => {
         setSuccess('');
-      }, 5000);
+      }, 3000);
     }
   }, [searchParams, router]);
 
@@ -51,7 +51,7 @@ function LoginPageContent() {
         setLoading(false);
         setTimeout(() => {
           setError('');
-        }, 5000);
+        }, 3000);
         return;
       }
     }
@@ -74,7 +74,7 @@ function LoginPageContent() {
       setLoading(false);
       setTimeout(() => {
         setError('');
-      }, 5000);
+      }, 3000);
     }
   };
 

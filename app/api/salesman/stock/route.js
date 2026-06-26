@@ -22,29 +22,52 @@ export async function GET(request) {
     const limit = 50;
     const skip = (page - 1) * limit;
 
-    const ownWhere = { salesmanId: salesman.id };
-    if (search) {
-      ownWhere.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { mfg: { contains: search, mode: 'insensitive' } }
-      ];
-    }
-
-    const ownItems = await prisma.stockItem.findMany({
-      where: ownWhere,
-      orderBy: { name: 'asc' }
+    const globalSalesman = await prisma.salesman.findUnique({
+      where: { username: 'admin_global' },
+      select: { id: true }
     });
 
-    const merged = ownItems.map(item => ({ ...item, isAdminGlobal: false }));
+    const where = {
+      salesmanId: { in: [salesman.id, globalSalesman?.id].filter(Boolean) },
+      ...(search ? {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { mfg: { contains: search, mode: 'insensitive' } }
+        ]
+      } : {})
+    };
 
-    const totalItems = merged.length;
-    const totalPages = Math.ceil(totalItems / limit);
-    const paginated = merged.slice(skip, skip + limit);
+    const [items, total] = await Promise.all([
+      prisma.stockItem.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          quantity: true,
+          mfg: true,
+          pack: true,
+          salesmanId: true
+        },
+        orderBy: { name: 'asc' },
+        take: limit,
+        skip
+      }),
+      prisma.stockItem.count({ where })
+    ]);
 
     return NextResponse.json({
-      items: paginated,
-      totalItems,
-      totalPages,
+      items: items.map(i => ({
+        id: i.id,
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity,
+        mfg: i.mfg,
+        pack: i.pack,
+        isAdminGlobal: i.salesmanId === globalSalesman?.id
+      })),
+      totalItems: total,
+      totalPages: Math.ceil(total / limit),
       page
     });
   } catch (error) {

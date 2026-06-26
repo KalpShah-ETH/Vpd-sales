@@ -164,7 +164,7 @@ async function runTests() {
     console.log(`- Created Stock Item ID: ${testStockItemId}`);
     
     // Read and verify item
-    const getStockRes = await fetch(`${BASE_URL}/api/salesman/stock`, {
+    const getStockRes = await fetch(`${BASE_URL}/api/salesman/stock?search=Test%20Aspirin`, {
       headers: { 'Cookie': salesmanCookie }
     });
     const stockResponse = await getStockRes.json();
@@ -259,7 +259,7 @@ async function runTests() {
     console.log(`  ${orderData.waUrl}`);
     
     // Verify stock is decremented
-    const stockVerifyRes = await fetch(`${BASE_URL}/api/salesman/stock`, {
+    const stockVerifyRes = await fetch(`${BASE_URL}/api/salesman/stock?search=Test%20Aspirin`, {
       headers: { 'Cookie': salesmanCookie }
     });
     const stockVerifyResponse = await stockVerifyRes.json();

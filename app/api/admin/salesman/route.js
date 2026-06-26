@@ -55,9 +55,11 @@ export async function GET() {
       return `${cleanName}|${cleanMfg}|${cleanPack}`;
     };
 
+    const globalKeys = globalItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack));
+
     const formattedSalesmen = salesmen.map(salesman => {
       const ownKeys = new Set(salesman.stockItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
-      const activeGlobalCount = globalItems.filter(item => !ownKeys.has(getUniquenessKey(item.name, item.mfg, item.pack))).length;
+      const activeGlobalCount = globalKeys.filter(key => !ownKeys.has(key)).length;
       const totalStockCount = salesman.stockItems.length + activeGlobalCount;
 
       return {

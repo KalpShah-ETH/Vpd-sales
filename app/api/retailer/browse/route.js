@@ -41,28 +41,29 @@ export async function GET(request) {
     }
 
     if (!targetCompanyId) {
-      const companies = await prisma.salesman.findMany({
-        where: whereClause,
-        select: {
-          id: true,
-          name: true,
-          companyName: true,
-          phone: true,
-          _count: {
-            select: { stockItems: true }
+      const [companies, globalSalesman] = await Promise.all([
+        prisma.salesman.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            name: true,
+            companyName: true,
+            phone: true,
+            _count: {
+              select: { stockItems: true }
+            }
+          },
+          orderBy: { companyName: 'asc' }
+        }),
+        prisma.salesman.findUnique({
+          where: { username: 'admin_global' },
+          select: {
+            _count: {
+              select: { stockItems: true }
+            }
           }
-        },
-        orderBy: { companyName: 'asc' }
-      });
-
-      const globalSalesman = await prisma.salesman.findUnique({
-        where: { username: 'admin_global' },
-        select: {
-          _count: {
-            select: { stockItems: true }
-          }
-        }
-      });
+        })
+      ]);
       const globalCount = globalSalesman?._count.stockItems || 0;
 
       const result = companies.map(c => ({
@@ -82,95 +83,73 @@ export async function GET(request) {
     const limit = 50;
     const skip = (page - 1) * limit;
 
-    const ownItemsWhere = { salesmanId: parseInt(targetCompanyId) };
-    if (search) {
-      ownItemsWhere.OR = [
+    const globalSalesman = await prisma.salesman.findUnique({
+      where: { username: 'admin_global' },
+      select: { id: true }
+    });
+    const globalSalesmanId = globalSalesman?.id;
+
+    const searchFilter = search ? {
+      OR: [
         { name: { contains: search, mode: 'insensitive' } },
         { mfg: { contains: search, mode: 'insensitive' } }
-      ];
-    }
+      ]
+    } : {};
 
-    const ownItems = await prisma.stockItem.findMany({
-      where: ownItemsWhere,
-      select: {
-        id: true,
-        name: true,
-        price: true,
-        quantity: true,
-        mfg: true,
-        pack: true
-      },
-      orderBy: { name: 'asc' }
-    });
+    const stockItemsWhere = {
+      salesmanId: { in: [parseInt(targetCompanyId), globalSalesmanId].filter(Boolean) },
+      ...searchFilter
+    };
 
-    const company = await prisma.salesman.findFirst({
-      where: whereClause,
-      select: {
-        id: true,
-        name: true,
-        companyName: true,
-        phone: true
-      }
-    });
+    const [items, total, company] = await Promise.all([
+      prisma.stockItem.findMany({
+        where: stockItemsWhere,
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          quantity: true,
+          mfg: true,
+          pack: true,
+          salesmanId: true
+        },
+        orderBy: { name: 'asc' },
+        take: limit,
+        skip
+      }),
+      prisma.stockItem.count({
+        where: stockItemsWhere
+      }),
+      prisma.salesman.findFirst({
+        where: whereClause,
+        select: {
+          id: true,
+          name: true,
+          companyName: true,
+          phone: true
+        }
+      })
+    ]);
 
     if (!company) {
       return NextResponse.json({ error: 'Company not found' }, { status: 404 });
     }
 
-    const globalSalesman = await prisma.salesman.findUnique({
-      where: { username: 'admin_global' }
-    });
-
-    const globalItemsWhere = { salesmanId: globalSalesman?.id || -1 };
-    if (search) {
-      globalItemsWhere.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { mfg: { contains: search, mode: 'insensitive' } }
-      ];
-    }
-
-    const globalItemsRaw = globalSalesman ? await prisma.stockItem.findMany({
-      where: globalItemsWhere,
-      select: {
-        id: true,
-        name: true,
-        price: true,
-        quantity: true,
-        mfg: true,
-        pack: true
-      },
-      orderBy: { name: 'asc' }
-    }) : [];
-
-    const globalItems = globalItemsRaw.map(item => ({
-      ...item,
-      isAdminGlobal: true
+    const processedItems = items.map(item => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      mfg: item.mfg,
+      pack: item.pack,
+      isAdminGlobal: item.salesmanId === globalSalesmanId
     }));
-
-    const getUniquenessKey = (name, mfg, pack) => {
-      const cleanName = (name || '').trim().toLowerCase();
-      const cleanMfg = (mfg || '').trim().toLowerCase();
-      const cleanPack = (pack || '').trim().toLowerCase();
-      return `${cleanName}|${cleanMfg}|${cleanPack}`;
-    };
-
-    const ownKeys = new Set(ownItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
-    const filteredGlobalItems = globalItems.filter(item => !ownKeys.has(getUniquenessKey(item.name, item.mfg, item.pack)));
-    
-    const merged = [
-      ...ownItems.map(item => ({ ...item, isAdminGlobal: false })),
-      ...filteredGlobalItems
-    ].sort((a, b) => a.name.localeCompare(b.name));
-
-    const totalItems = merged.length;
-    const totalPages = Math.ceil(totalItems / limit);
-    const paginated = merged.slice(skip, skip + limit);
 
     return NextResponse.json({
       company,
-      stockItems: paginated,
-      totalItems,
-      totalPages,
+      stockItems: processedItems,
+      totalItems: total,
+      totalPages: Math.ceil(total / limit),
       page
     });
   } catch (error) {

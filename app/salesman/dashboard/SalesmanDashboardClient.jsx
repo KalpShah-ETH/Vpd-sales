@@ -5,12 +5,11 @@ import { useRouter } from 'next/navigation';
 
 export default function SalesmanDashboardClient({ salesman }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('stock'); // stock, orders, preview
+  const [activeTab, setActiveTab] = useState('stock'); // stock, orders
   
   // Data lists
   const [stockItems, setStockItems] = useState([]);
   const [orders, setOrders] = useState([]);
-  const [catalog, setCatalog] = useState([]); // for previewing other companies
   const [retailers, setRetailers] = useState([]);
   const [retailerForm, setRetailerForm] = useState({ shopName: '', phone: '' });
   const [retailerLoading, setRetailerLoading] = useState(false);
@@ -24,38 +23,10 @@ export default function SalesmanDashboardClient({ salesman }) {
   const [stockPage, setStockPage] = useState(1);
   const [stockTotalPages, setStockTotalPages] = useState(1);
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [previewPage, setPreviewPage] = useState(1);
-  const [previewTotalPages, setPreviewTotalPages] = useState(1);
   const [orderStatusFilter, setOrderStatusFilter] = useState('ALL'); // ALL, PENDING, FULFILLED
   const [submittingId, setSubmittingId] = useState(null);
-  const [companyLoadingId, setCompanyLoadingId] = useState(null);
 
-  const handleSelectCompany = async (companyId) => {
-    if (companyLoadingId) return;
-    setCompanyLoadingId(companyId);
-    try {
-      const res = await fetch(`/api/retailer/browse?companyId=${companyId}&page=1&search=`);
-      if (res.ok) {
-        const data = await res.json();
-        setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
-        setSelectedCompanyId(companyId);
-        setSearchQuery('');
-        setDebouncedSearchQuery('');
-        setPreviewPage(1);
-        setPreviewTotalPages(data.totalPages || 1);
-        window.scrollTo(0, 0);
-      } else {
-        showToast('Failed to load company catalogue');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Error connecting to database');
-    } finally {
-      setCompanyLoadingId(null);
-    }
-  };
+
 
   // Custom Confirmation Modal State
   const [confirmModal, setConfirmModal] = useState({
@@ -96,16 +67,7 @@ export default function SalesmanDashboardClient({ salesman }) {
     pack: ''
   });
 
-  // Preview tab state
-  const [selectedCompanyId, setSelectedCompanyId] = useState(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 250);
-    return () => clearTimeout(handler);
-  }, [searchQuery]);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -137,15 +99,7 @@ export default function SalesmanDashboardClient({ salesman }) {
     }
   }, [stockPage, debouncedStockSearchQuery, dataLoaded]);
 
-  useEffect(() => {
-    if (selectedCompanyId) {
-      fetchCompanyStock(selectedCompanyId, previewPage, debouncedSearchQuery);
-    }
-  }, [selectedCompanyId, previewPage, debouncedSearchQuery]);
 
-  useEffect(() => {
-    if (activeTab === 'preview') fetchCatalog();
-  }, [activeTab]);
 
   const fetchRetailers = async () => {
     try {
@@ -210,18 +164,7 @@ export default function SalesmanDashboardClient({ salesman }) {
     }
   };
 
-  const fetchCompanyStock = async (companyId, page, search) => {
-    try {
-      const res = await fetch(`/api/retailer/browse?companyId=${companyId}&page=${page}&search=${encodeURIComponent(search)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCatalog(prev => prev.map(c => c.id === companyId ? { ...c, stockItems: data.stockItems } : c));
-        setPreviewTotalPages(data.totalPages || 1);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
+
 
   // API Call: Fetch orders
   const fetchOrders = async () => {
@@ -237,19 +180,7 @@ export default function SalesmanDashboardClient({ salesman }) {
     }
   };
 
-  // API Call: Fetch all companies (to satisfy: see all companies' stock)
-  const fetchCatalog = async () => {
-    try {
-      const res = await fetch('/api/retailer/browse');
-      if (res.ok) {
-        const data = await res.json();
-        setCatalog(data);
-      }
-    } catch (err) {
-      console.error(err);
-      showErrorToast('Failed to load data. Please refresh.');
-    }
-  };
+
 
   // Logout
   const handleLogout = async () => {
@@ -286,7 +217,6 @@ export default function SalesmanDashboardClient({ salesman }) {
       showToast(isEditing ? 'Product details updated!' : 'Product added to catalogue!');
       setIsStockModalOpen(false);
       fetchStock(stockPage, debouncedStockSearchQuery);
-      fetchCatalog(); // Refresh preview catalog too
     } catch (err) {
       showErrorToast(err.message);
     } finally {
@@ -307,7 +237,6 @@ export default function SalesmanDashboardClient({ salesman }) {
           if (!res.ok) throw new Error('Failed to delete');
           showToast('Product removed from catalogue');
           fetchStock(stockPage, debouncedStockSearchQuery);
-          fetchCatalog(); // Refresh preview catalog too
         } catch (err) {
           showErrorToast(err.message);
         } finally {
@@ -447,7 +376,6 @@ export default function SalesmanDashboardClient({ salesman }) {
       setStockSearchQuery('');
       setDebouncedStockSearchQuery('');
       fetchStock(1, '');
-      fetchCatalog();
     } catch (err) {
       showErrorToast(err.message);
     } finally {
@@ -486,19 +414,7 @@ export default function SalesmanDashboardClient({ salesman }) {
     };
   }, [orders]);
 
-  // Selected company's details for preview
-  const selectedCompany = useMemo(() => {
-    if (!selectedCompanyId) return null;
-    return catalog.find(c => c.id === selectedCompanyId);
-  }, [catalog, selectedCompanyId]);
 
-  const paginatedStock = useMemo(() => {
-    return stockItems;
-  }, [stockItems]);
-
-  const paginatedPreviewStock = useMemo(() => {
-    return selectedCompany?.stockItems || [];
-  }, [selectedCompany?.stockItems]);
 
   const filteredOrders = useMemo(() => {
     let result = orders;
@@ -576,18 +492,7 @@ export default function SalesmanDashboardClient({ salesman }) {
               )}
             </button>
           </li>
-          <li>
-            <button 
-              className={`sidebar-link ${activeTab === 'preview' ? 'active' : ''}`}
-              onClick={() => {
-                setActiveTab('preview');
-                setSelectedCompanyId(null);
-                setIsSidebarOpen(false);
-              }}
-            >
-              👀 Browse Catalogues
-            </button>
-          </li>
+
           <li>
             <button 
               className={`sidebar-link ${activeTab === 'retailers' ? 'active' : ''}`}
@@ -599,7 +504,7 @@ export default function SalesmanDashboardClient({ salesman }) {
               👥 Retailer Directory
             </button>
           </li>
-          <li style={{ marginTop: 'auto' }}>
+          <li>
             <button 
               className="sidebar-link" 
               onClick={() => {
@@ -683,7 +588,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                       </tr>
                     </thead>
                     <tbody>
-                       {paginatedStock.map((item) => (
+                       {stockItems.map((item) => (
                         <tr key={item.id} className={item.quantity === 0 ? 'out-of-stock' : ''} style={item.quantity === 0 ? { opacity: 0.6 } : {}}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -701,7 +606,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                             <div style={{ display: 'flex', gap: '8px' }}>
                               <button 
                                 className="btn btn-secondary" 
-                                style={{ padding: '0 10px', fontSize: '14px' }} 
+                                style={{ padding: '2px 6px', fontSize: '12px' }} 
                                 disabled={submittingId === item.id} 
                                 onClick={() => openEditStockModal(item)}
                               >
@@ -709,11 +614,11 @@ export default function SalesmanDashboardClient({ salesman }) {
                               </button>
                               <button 
                                 className="btn btn-danger" 
-                                style={{ padding: '0 10px', fontSize: '14px' }} 
+                                style={{ padding: '2px 6px', fontSize: '12px' }} 
                                 disabled={submittingId === item.id} 
                                 onClick={() => handleDeleteStock(item.id)}
                               >
-                                {submittingId === item.id ? 'Removing...' : 'Delete'}
+                                {submittingId === item.id ? 'Removing...' : 'Del'}
                               </button>
                             </div>
                           </td>
@@ -723,7 +628,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                   </table>
 
                   <div className="mobile-card-list">
-                    {paginatedStock.map((item) => (
+                    {stockItems.map((item) => (
                       <div key={item.id} className={`mobile-card ${item.quantity === 0 ? 'out-of-stock' : ''}`} style={item.quantity === 0 ? { opacity: 0.6 } : {}}>
                         <div className="mobile-card-header">
                           <span style={{ fontWeight: '700', fontSize: '16px' }}>{item.name}</span>
@@ -736,7 +641,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                         <div className="mobile-card-actions">
                           <button 
                             className="btn btn-secondary" 
-                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }} 
                             disabled={submittingId === item.id} 
                             onClick={() => openEditStockModal(item)}
                           >
@@ -744,11 +649,11 @@ export default function SalesmanDashboardClient({ salesman }) {
                           </button>
                           <button 
                             className="btn btn-danger" 
-                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }} 
                             disabled={submittingId === item.id} 
                             onClick={() => handleDeleteStock(item.id)}
                           >
-                            {submittingId === item.id ? 'Removing...' : 'Delete'}
+                            {submittingId === item.id ? 'Removing...' : 'Del'}
                           </button>
                         </div>
                       </div>
@@ -871,13 +776,13 @@ export default function SalesmanDashboardClient({ salesman }) {
                             {order.status === 'PENDING' ? (
                               <button 
                                 className="btn btn-success" 
-                                style={{ padding: '0 12px', fontSize: '13px' }} 
+                                style={{ padding: '2px 6px', fontSize: '12px' }} 
                                 onClick={() => handleFulfillOrder(order.id)}
                               >
                                 ✓ Mark Delivered
                               </button>
                             ) : (
-                              <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Done</span>
+                              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Done</span>
                             )}
                           </td>
                         </tr>
@@ -905,7 +810,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                           <div className="mobile-card-actions">
                             <button 
                               className="btn btn-success btn-full" 
-                              style={{ minHeight: '40px', fontSize: '13px' }} 
+                              style={{ minHeight: '32px', fontSize: '12px', padding: '2px 6px' }} 
                               onClick={() => handleFulfillOrder(order.id)}
                             >
                               ✓ Mark Delivered
@@ -921,162 +826,7 @@ export default function SalesmanDashboardClient({ salesman }) {
           </div>
         )}
 
-        {/* TAB 3: Preview Retailer View */}
-        {activeTab === 'preview' && (
-          <div>
-            {!selectedCompanyId ? (
-              <div>
-                <div className="dashboard-header">
-                  <div>
-                    <h1 className="dashboard-title">Pharma Companies Stock Catalogues</h1>
-                    <p style={{ color: 'var(--text-muted)' }}>Here is a replica of what the Retailers see. You can check stocks across all other companies.</p>
-                  </div>
-                </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px', marginTop: '16px' }}>
-                  {catalog.map((company, index) => {
-                    const initials = company.companyName.substring(0, 2).toUpperCase();
-                    // Custom colors for initials badges
-                    const colors = ['#2563eb', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-                    const color = colors[company.id % colors.length];
-
-                    return (
-                      <button 
-                        key={company.id} 
-                        className="company-card"
-                        onClick={() => handleSelectCompany(company.id)}
-                        disabled={companyLoadingId !== null}
-                        style={companyLoadingId !== null && companyLoadingId !== company.id ? { opacity: 0.7, cursor: 'not-allowed' } : {}}
-                      >
-                        <div className="avatar" style={{ backgroundColor: color }}>
-                          {initials}
-                        </div>
-                        <div className="company-info">
-                          <div className="company-name">{company.companyName}</div>
-                          <div className="company-meta">
-                            {company.stockItemsCount !== undefined ? company.stockItemsCount : (company.stockItems?.length || 0)} Products Available
-                          </div>
-                        </div>
-                        {companyLoadingId === company.id && (
-                          <div style={{ marginLeft: 'auto' }}>
-                            <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px', borderTopColor: 'var(--primary)', margin: 0 }}></div>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <div>
-                <div className="mobile-header" style={{ position: 'static', padding: '16px 0', borderBottom: 'none', background: 'none' }}>
-                  <button className="back-btn" onClick={() => { setSelectedCompanyId(null); setSearchQuery(''); setPreviewPage(1); window.scrollTo(0, 0); }} style={{ marginLeft: '-12px' }}>
-                    ←
-                  </button>
-                  <span className="mobile-header-title">{selectedCompany?.companyName} Stock</span>
-                </div>
-
-                <div style={{ marginBottom: '20px', position: 'relative', maxWidth: '600px' }}>
-                  <input
-                    type="text"
-                    className="form-input"
-                    style={{ width: '100%', padding: '12px 48px 12px 16px', fontSize: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', outline: 'none' }}
-                    placeholder="🔍 Search medicines by name or manufacturer..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      setPreviewPage(1);
-                    }}
-                  />
-                  {searchQuery !== debouncedSearchQuery && (
-                    <div style={{ position: 'absolute', right: '16px', top: '14px', display: 'flex', alignItems: 'center' }}>
-                      <span className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px', borderTopColor: 'var(--primary)', margin: 0 }}></span>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ maxWidth: '600px', marginTop: '12px', paddingBottom: previewTotalPages > 1 ? '80px' : '20px' }}>
-                  {paginatedPreviewStock.length === 0 ? (
-                    <div className="empty-state">
-                      <div className="empty-icon">📦</div>
-                      <p>
-                        {selectedCompany?.stockItems?.length === 0 
-                          ? 'This company has not posted any products yet.' 
-                          : 'No matching medicines found.'}
-                      </p>
-                    </div>
-                  ) : (
-                    paginatedPreviewStock.map((item) => (
-                      <div key={item.id} className={`stock-card ${item.quantity === 0 ? 'out-of-stock' : ''}`}>
-                        <div className="stock-header">
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <div className="stock-title" style={{ fontWeight: '700', fontSize: '18px' }}>{item.name}</div>
-                              {item.isAdminGlobal && (
-                                <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 6px', display: 'inline-flex', alignItems: 'center', gap: '4px', backgroundColor: 'var(--primary-light)', color: 'var(--primary)', borderColor: 'var(--primary)' }}>
-                                  🌐 Shared Stock
-                                </span>
-                              )}
-                            </div>
-                            <div className="stock-qty">
-                              {item.quantity > 0 ? `Stock: ${item.quantity} strips available` : 'Product Out of Stock'}
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px', fontSize: '13px' }}>
-                              {item.mfg && (
-                                <span style={{ backgroundColor: 'var(--bg-primary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
-                                  🏭 {item.mfg}
-                                </span>
-                              )}
-                              {item.pack && (
-                                <span style={{ backgroundColor: 'var(--bg-primary)', padding: '2px 6px', borderRadius: '4px', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
-                                  📦 Pack: {item.pack}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="stock-actions" style={{ marginTop: '8px' }}>
-                          <span className="badge badge-neutral" style={{ width: '100%', justifyContent: 'center', padding: '12px', fontSize: '14px', borderRadius: 'var(--radius-sm)' }}>
-                            👁️ View Only (Catalogue Preview)
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Pagination Controls */}
-                {previewTotalPages > 1 && (
-                  <div className="mobile-pagination-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '20px', paddingBottom: '20px', maxWidth: '600px' }}>
-                    <button 
-                      className="btn btn-secondary" 
-                      disabled={previewPage <= 1}
-                      onClick={() => {
-                        setPreviewPage(prev => Math.max(1, prev - 1));
-                        window.scrollTo(0, 0);
-                      }}
-                    >
-                      ◀ Previous
-                    </button>
-                    <span style={{ fontWeight: '600', color: 'var(--text-muted)' }}>
-                      Page {previewPage} of {previewTotalPages}
-                    </span>
-                    <button 
-                      className="btn btn-secondary" 
-                      disabled={previewPage >= previewTotalPages}
-                      onClick={() => {
-                        setPreviewPage(prev => Math.min(previewTotalPages, prev + 1));
-                        window.scrollTo(0, 0);
-                      }}
-                    >
-                      Next ▶
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* TAB 4: Retailer Directory */}
         {activeTab === 'retailers' && (
@@ -1170,13 +920,13 @@ export default function SalesmanDashboardClient({ salesman }) {
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             <button
                               className="btn btn-secondary"
-                              style={{ flex: 1, minWidth: '100px', fontSize: '13px', padding: '8px 12px' }}
+                              style={{ flex: 1, minWidth: '100px', fontSize: '12px', padding: '2px 6px' }}
                               onClick={() => {
                                 navigator.clipboard.writeText(loginLink);
                                 showToast('Copied to clipboard!');
                               }}
                             >
-                              📋 Copy Link
+                              Copy Link
                             </button>
                             <a
                               href={waUrl}
@@ -1186,15 +936,15 @@ export default function SalesmanDashboardClient({ salesman }) {
                               style={{ 
                                 flex: 1, 
                                 minWidth: '120px', 
-                                fontSize: '13px', 
-                                padding: '8px 12px', 
+                                fontSize: '12px', 
+                                padding: '2px 6px', 
                                 display: 'inline-flex', 
                                 justifyContent: 'center', 
                                 alignItems: 'center',
                                 textDecoration: 'none'
                               }}
                             >
-                              💬 Send via WhatsApp
+                              Send via WhatsApp
                             </a>
                           </div>
                         </div>

@@ -18,7 +18,8 @@ async function runTests() {
   let testStockItemId = null;
   let testOrderId = null;
 
-  const testSalesmanUsername = '9876543210';
+  const testSalesmanPhone = `9876${Math.floor(100000 + Math.random() * 900000)}`;
+  const testSalesmanUsername = testSalesmanPhone;
   const testSalesmanPassword = 'password123';
   const testRetailerPhone = `9900${Math.floor(100000 + Math.random() * 900000)}`;
 
@@ -63,7 +64,7 @@ async function runTests() {
       body: JSON.stringify({
         name: 'Test Sales Rep',
         companyName: 'Test Pharma Co',
-        phone: '9876543210',
+        phone: testSalesmanPhone,
         username: testSalesmanUsername,
         password: testSalesmanPassword
       })
@@ -166,7 +167,8 @@ async function runTests() {
     const getStockRes = await fetch(`${BASE_URL}/api/salesman/stock`, {
       headers: { 'Cookie': salesmanCookie }
     });
-    const stockList = await getStockRes.json();
+    const stockResponse = await getStockRes.json();
+    const stockList = Array.isArray(stockResponse) ? stockResponse : (stockResponse.items || []);
     const foundItem = stockList.find(i => i.id === testStockItemId);
     if (!foundItem || foundItem.quantity !== 100) {
       throw new Error('Stock item details mismatch in query');
@@ -207,12 +209,20 @@ async function runTests() {
 
     const catalogData = await browseRes.json();
     // Look for our test company
-    const testCompany = catalogData.find(c => c.companyName === 'Test Pharma Co');
+    const testCompany = catalogData.find(c => c.id === testSalesmanId);
     if (!testCompany) {
-      throw new Error('Test Pharma Co is not visible in catalog browse');
+      throw new Error(`Test Pharma Co with ID ${testSalesmanId} is not visible in catalog browse`);
     }
 
-    const catalogItem = testCompany.stockItems.find(i => i.id === testStockItemId);
+    // Since stockItems are fetched dynamically per company, fetch them explicitly with search filter
+    const companyStockRes = await fetch(`${BASE_URL}/api/retailer/browse?companyId=${testCompany.id}&search=${encodeURIComponent('Test Aspirin 100mg')}`, {
+      headers: { 'Cookie': retailerCookie }
+    });
+    if (companyStockRes.status !== 200) {
+      throw new Error(`Browse company stock failed with status ${companyStockRes.status}`);
+    }
+    const companyStockData = await companyStockRes.json();
+    const catalogItem = companyStockData.stockItems.find(i => i.id === testStockItemId);
     if (!catalogItem || catalogItem.quantity !== 100) {
       throw new Error('Aspirin stock item is not visible or quantity is wrong in browse view');
     }
@@ -252,7 +262,8 @@ async function runTests() {
     const stockVerifyRes = await fetch(`${BASE_URL}/api/salesman/stock`, {
       headers: { 'Cookie': salesmanCookie }
     });
-    const updatedStockList = await stockVerifyRes.json();
+    const stockVerifyResponse = await stockVerifyRes.json();
+    const updatedStockList = Array.isArray(stockVerifyResponse) ? stockVerifyResponse : (stockVerifyResponse.items || []);
     const updatedItem = updatedStockList.find(i => i.id === testStockItemId);
     if (updatedItem.quantity !== 95) {
       throw new Error(`Stock quantity was not decremented. Expected 95, found ${updatedItem.quantity}`);

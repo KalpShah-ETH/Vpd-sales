@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import bcrypt from 'bcryptjs';
 import prisma from '@/lib/db';
-import { signToken, setAuthCookie, deleteAuthCookie } from '@/lib/auth';
+import { signToken, setAuthCookie, deleteAuthCookie, blacklistToken } from '@/lib/auth';
+import { checkLockout, handleFailedAttempt, handleSuccessfulLogin } from '@/lib/lockout';
 
 export async function POST(request) {
   try {
@@ -13,11 +15,15 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-
-    const { checkLockout, handleFailedAttempt, handleSuccessfulLogin } = await import('@/lib/lockout');
     
-    // Check lockout first
-    const lockoutTime = await checkLockout(username);
+    // Check lockout and fetch user in parallel
+    const [lockoutTime, admin] = await Promise.all([
+      checkLockout(username),
+      prisma.admin.findUnique({
+        where: { username },
+      })
+    ]);
+
     if (lockoutTime) {
       const minutesLeft = Math.ceil((lockoutTime - Date.now()) / 60000);
       return NextResponse.json(
@@ -25,10 +31,6 @@ export async function POST(request) {
         { status: 423 }
       );
     }
-
-    const admin = await prisma.admin.findUnique({
-      where: { username },
-    });
 
     if (!admin) {
       await handleFailedAttempt(username);
@@ -71,11 +73,9 @@ export async function POST(request) {
 
 // Support simple logout through this route
 export async function DELETE() {
-  const { cookies } = await import('next/headers');
   const cookieStore = await cookies();
   const token = cookieStore.get('admin_session')?.value;
   if (token) {
-    const { blacklistToken } = await import('@/lib/auth');
     await blacklistToken(token);
   }
 

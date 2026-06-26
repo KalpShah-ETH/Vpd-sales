@@ -813,7 +813,7 @@ export default function AdminDashboardClient() {
               ⚙️ Settings
             </button>
           </li>
-          <li style={{ marginTop: 'auto' }}>
+          <li>
             <button 
               className="sidebar-link" 
               onClick={() => {
@@ -925,7 +925,7 @@ export default function AdminDashboardClient() {
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                               <button 
                                 className={`btn ${salesman.active ? 'btn-secondary' : 'btn-primary'}`} 
-                                style={{ padding: '0 10px', fontSize: '14px' }}
+                                style={{ padding: '2px 6px', fontSize: '12px' }}
                                 onClick={async () => {
                                   try {
                                     const res = await fetch('/api/admin/salesman', {
@@ -944,11 +944,11 @@ export default function AdminDashboardClient() {
                               >
                                 {salesman.active ? 'Disable' : 'Enable'}
                               </button>
-                              <button className="btn btn-secondary" style={{ padding: '0 10px', fontSize: '14px' }} onClick={() => openEditSalesmanModal(salesman)}>
+                              <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => openEditSalesmanModal(salesman)}>
                                 Edit
                               </button>
-                              <button className="btn btn-danger" style={{ padding: '0 10px', fontSize: '14px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
-                                Delete
+                              <button className="btn btn-danger" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
+                                Del
                               </button>
                             </div>
                           </td>
@@ -970,7 +970,7 @@ export default function AdminDashboardClient() {
                         <div className="mobile-card-actions">
                           <button 
                             className={`btn ${salesman.active ? 'btn-secondary' : 'btn-primary'}`} 
-                            style={{ flex: 1, minHeight: '40px', padding: '0 8px', fontSize: '13px' }}
+                            style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }}
                             onClick={async () => {
                               try {
                                 const res = await fetch('/api/admin/salesman', {
@@ -989,11 +989,11 @@ export default function AdminDashboardClient() {
                           >
                             {salesman.active ? 'Disable' : 'Enable'}
                           </button>
-                          <button className="btn btn-secondary" style={{ flex: 1, minHeight: '40px', padding: '0 8px', fontSize: '13px' }} onClick={() => openEditSalesmanModal(salesman)}>
+                          <button className="btn btn-secondary" style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }} onClick={() => openEditSalesmanModal(salesman)}>
                             Edit
                           </button>
-                          <button className="btn btn-danger" style={{ flex: 1, minHeight: '40px', padding: '0 8px', fontSize: '13px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
-                            Delete
+                          <button className="btn btn-danger" style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
+                            Del
                           </button>
                         </div>
                       </div>
@@ -1086,7 +1086,7 @@ export default function AdminDashboardClient() {
                               {retailer.active ? 'Active' : 'Deactivated'}
                             </span>
                           </td>
-                          <td>🛒 {retailer._count.orders} orders</td>
+                          <td>{retailer._count.orders} orders</td>
                           <td>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                               <input 
@@ -1110,7 +1110,7 @@ export default function AdminDashboardClient() {
                             <div style={{ display: 'flex', gap: '6px' }}>
                               <button 
                                 className="btn btn-secondary" 
-                                style={{ padding: '0 10px', fontSize: '13px' }} 
+                                style={{ padding: '2px 6px', fontSize: '12px' }} 
                                 onClick={() => {
                                   setEditingRetailer(retailer);
                                   setRetailerForm({ shopName: retailer.shopName, phone: retailer.phone, active: retailer.active });
@@ -1121,24 +1121,24 @@ export default function AdminDashboardClient() {
                               </button>
                               <button 
                                 className={`btn ${retailer.active ? 'btn-secondary' : 'btn-primary'}`} 
-                                style={{ padding: '0 10px', fontSize: '13px' }} 
+                                style={{ padding: '2px 6px', fontSize: '12px' }} 
                                 onClick={() => toggleRetailerStatus(retailer)}
                               >
                                 {retailer.active ? 'Disable' : 'Enable'}
                               </button>
                               <button 
                                 className="btn btn-secondary" 
-                                style={{ padding: '0 10px', fontSize: '13px' }} 
+                                style={{ padding: '2px 6px', fontSize: '12px' }} 
                                 onClick={() => regenerateRetailerLink(retailer.id)}
                               >
-                                🔄 Reset Link
+                                Reset Link
                               </button>
                               <button 
                                 className="btn btn-danger" 
-                                style={{ padding: '0 10px', fontSize: '13px' }} 
+                                style={{ padding: '2px 6px', fontSize: '12px' }} 
                                 onClick={() => handleDeleteRetailer(retailer.id)}
                               >
-                                ❌ Delete
+                                Del
                               </button>
                             </div>
                           </td>
@@ -1158,7 +1158,7 @@ export default function AdminDashboardClient() {
                         </div>
                         <div className="mobile-card-body">
                           <div><strong>Phone:</strong> {retailer.phone}</div>
-                          <div><strong>Orders:</strong> 🛒 {retailer._count.orders} orders</div>
+                          <div><strong>Orders:</strong> {retailer._count.orders} orders</div>
                           <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             <strong>Private Link:</strong>
                             <div style={{ display: 'flex', gap: '8px' }}>
@@ -1183,7 +1183,7 @@ export default function AdminDashboardClient() {
                         <div className="mobile-card-actions">
                           <button 
                             className="btn btn-secondary" 
-                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }} 
                             onClick={() => {
                               setEditingRetailer(retailer);
                               setRetailerForm({ shopName: retailer.shopName, phone: retailer.phone, active: retailer.active });
@@ -1194,24 +1194,24 @@ export default function AdminDashboardClient() {
                           </button>
                           <button 
                             className={`btn ${retailer.active ? 'btn-secondary' : 'btn-primary'}`} 
-                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }} 
                             onClick={() => toggleRetailerStatus(retailer)}
                           >
                             {retailer.active ? 'Disable' : 'Enable'}
                           </button>
                           <button 
                             className="btn btn-secondary" 
-                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }} 
                             onClick={() => regenerateRetailerLink(retailer.id)}
                           >
                             Reset
                           </button>
                           <button 
                             className="btn btn-danger" 
-                            style={{ flex: 1, minHeight: '36px', padding: '0 6px', fontSize: '12px' }} 
+                            style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }} 
                             onClick={() => handleDeleteRetailer(retailer.id)}
                           >
-                            Delete
+                            Del
                           </button>
                         </div>
                       </div>

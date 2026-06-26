@@ -416,7 +416,7 @@ export default function RetailerBrowseClient({ shopName }) {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', paddingBottom: totalPages > 1 ? '80px' : '20px' }}>
-            {filteredStockItems.length === 0 ? (
+            {paginatedStockItems.length === 0 ? (
               <div className="empty-state">
                 <div className="empty-icon">📦</div>
                 <p>

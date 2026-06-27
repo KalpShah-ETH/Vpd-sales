@@ -258,17 +258,17 @@ async function runTests() {
     console.log(`- Generated WhatsApp Web Redirect URL:`);
     console.log(`  ${orderData.waUrl}`);
     
-    // Verify stock is decremented
+    // Verify stock remains static
     const stockVerifyRes = await fetch(`${BASE_URL}/api/salesman/stock?search=Test%20Aspirin`, {
       headers: { 'Cookie': salesmanCookie }
     });
     const stockVerifyResponse = await stockVerifyRes.json();
     const updatedStockList = Array.isArray(stockVerifyResponse) ? stockVerifyResponse : (stockVerifyResponse.items || []);
     const updatedItem = updatedStockList.find(i => i.id === testStockItemId);
-    if (updatedItem.quantity !== 95) {
-      throw new Error(`Stock quantity was not decremented. Expected 95, found ${updatedItem.quantity}`);
+    if (updatedItem.quantity !== 100) {
+      throw new Error(`Stock quantity was updated. Expected static 100, found ${updatedItem.quantity}`);
     }
-    console.log('- Verified inventory decremented (100 -> 95).');
+    console.log('- Verified inventory remained static (100).');
     console.log('✅ Retailer Order placement verified successfully!\n');
 
     // -------------------------------------------------------------

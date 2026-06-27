@@ -83,21 +83,6 @@ export async function POST(request) {
           salesman = stockItem.salesman;
         }
 
-        // Update stock item quantity in DB (decrement)
-        const updatedStockItem = await tx.stockItem.update({
-          where: { id: stockItem.id },
-          data: {
-            quantity: {
-              decrement: entry.quantity
-            }
-          }
-        });
-
-        // If quantity drops below 0, it means another concurrent request got it first
-        if (updatedStockItem.quantity < 0) {
-          throw { status: 400, error: `Product "${stockItem.name}" is out of stock` };
-        }
-
         // Save order in database
         const order = await tx.order.create({
           data: {

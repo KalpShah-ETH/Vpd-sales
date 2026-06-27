@@ -41,6 +41,11 @@ export async function POST(request) {
       });
     }
 
+    // 1. Delete all existing global stock items
+    await prisma.stockItem.deleteMany({
+      where: { salesmanId: globalSalesman.id }
+    });
+
     const getUniquenessKey = (name, mfg, pack) => {
       const cleanName = (name || '').trim().toLowerCase();
       const cleanMfg = (mfg || '').trim().toLowerCase();
@@ -48,14 +53,7 @@ export async function POST(request) {
       return `${cleanName}|${cleanMfg}|${cleanPack}`;
     };
 
-    // 1. Get existing items for admin_global
-    const existingItems = await prisma.stockItem.findMany({
-      where: { salesmanId: globalSalesman.id },
-      select: { name: true, mfg: true, pack: true }
-    });
-
-    const existingKeys = new Set(existingItems.map(item => getUniquenessKey(item.name, item.mfg, item.pack)));
-    const currentKeys = new Set(existingKeys);
+    const currentKeys = new Set();
 
     // 2. Filter new items
     const newItems = [];

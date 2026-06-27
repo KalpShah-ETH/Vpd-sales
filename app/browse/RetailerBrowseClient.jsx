@@ -196,23 +196,7 @@ export default function RetailerBrowseClient({ shopName }) {
         throw new Error(data.error || 'Failed to place order');
       }
 
-      // Decrement local quantity for instant visual feedback
-      setCatalog(prevCatalog => {
-        return prevCatalog.map(comp => {
-          return {
-            ...comp,
-            stockItems: comp.stockItems.map(item => {
-              if (item.id === itemId) {
-                return {
-                  ...item,
-                  quantity: Math.max(0, item.quantity - qty)
-                };
-              }
-              return item;
-            })
-          };
-        });
-      });
+
 
       // Clear quantity selection
       setQuantities({ ...quantities, [itemId]: 1 });
@@ -273,23 +257,7 @@ export default function RetailerBrowseClient({ shopName }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to place order');
 
-      setCatalog(prevCatalog => {
-        return prevCatalog.map(comp => {
-          return {
-            ...comp,
-            stockItems: comp.stockItems.map(item => {
-              const cartItem = cart.find(c => c.item.id === item.id);
-              if (cartItem) {
-                return {
-                  ...item,
-                  quantity: Math.max(0, item.quantity - cartItem.quantity)
-                };
-              }
-              return item;
-            })
-          };
-        });
-      });
+
 
       setCart([]);
       setIsCartOpen(false);

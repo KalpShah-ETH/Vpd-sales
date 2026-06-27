@@ -61,6 +61,7 @@ export async function POST(request) {
         data: {
           shopName: shopName.trim(),
           token,
+          deviceKey: null, // Clear bound device key
           active: true,
           salesmanId: salesman.id
         }

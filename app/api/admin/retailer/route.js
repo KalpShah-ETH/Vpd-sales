@@ -71,6 +71,7 @@ export async function PUT(request) {
     if (active !== undefined) updateData.active = active;
     if (regenerateToken) {
       updateData.token = crypto.randomBytes(16).toString('hex');
+      updateData.deviceKey = null; // Clear bound device key
     }
 
     const retailer = await prisma.retailer.update({

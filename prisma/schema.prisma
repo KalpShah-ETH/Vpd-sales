@@ -32,6 +32,7 @@ model Retailer {
   shopName   String
   phone      String    @unique
   token      String    @unique // Secure unique token for silent login URL
+  deviceKey  String?   // Tethers the link to a single browser/device
   active     Boolean   @default(true)
   salesmanId Int?
   salesman   Salesman? @relation(fields: [salesmanId], references: [id], onDelete: Cascade)

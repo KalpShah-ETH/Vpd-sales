@@ -392,9 +392,36 @@ export default function AdminDashboardClient() {
       showToast('Background image updated successfully!');
       setBgUploadStatus('Upload successful!');
       setBgFile(null);
+      fetchAdminStats(); // refresh preview
     } catch (err) {
       showErrorToast(err.message);
       setBgUploadStatus(`Error: ${err.message}`);
+    } finally {
+      setBgUploadLoading(false);
+    }
+  };
+
+  const handleRemoveBgImage = async () => {
+    if (!confirm('Are you sure you want to remove the published background image and revert to the default styling?')) return;
+    setBgUploadLoading(true);
+    setBgUploadStatus('');
+    try {
+      const res = await fetch('/api/admin/background', {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to remove background image');
+      
+      setBgUploadStatus('Background image removed successfully!');
+      setBgFile(null);
+      showToast('Background image removed!');
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('bgVersion');
+      }
+      fetchAdminStats(); // refresh preview to show empty
+    } catch (err) {
+      setBgUploadStatus(`Error: ${err.message}`);
+      showErrorToast(err.message);
     } finally {
       setBgUploadLoading(false);
     }
@@ -1271,6 +1298,21 @@ export default function AdminDashboardClient() {
                   Upload a background image that will appear across the retailer browsing dashboard for all shops. Highly recommended to use a clean, professional, and optimized image.
                 </p>
 
+                {adminStats.bgVersion && (
+                  <div style={{ marginBottom: '20px' }}>
+                    <p style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Currently Active Background:
+                    </p>
+                    <div style={{ position: 'relative', width: '100%', height: '140px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)', overflow: 'hidden', backgroundColor: 'var(--bg-primary)' }}>
+                      <img 
+                        src={`/api/retailer/bg-image?v=${adminStats.bgVersion}`} 
+                        alt="Current Background" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <form onSubmit={handleBgUpload}>
                   <div className="form-group" style={{ marginBottom: '16px' }}>
                     <input 
@@ -1303,6 +1345,18 @@ export default function AdminDashboardClient() {
                   >
                     {bgUploadLoading ? 'Uploading...' : 'Save & Publish Image'}
                   </button>
+
+                  {adminStats.bgVersion && (
+                    <button 
+                      type="button" 
+                      className="btn btn-secondary btn-full" 
+                      style={{ marginTop: '8px', borderColor: 'var(--danger)', color: 'var(--danger)' }}
+                      onClick={handleRemoveBgImage}
+                      disabled={bgUploadLoading}
+                    >
+                      Remove Published Image
+                    </button>
+                  )}
                 </form>
               </div>
 

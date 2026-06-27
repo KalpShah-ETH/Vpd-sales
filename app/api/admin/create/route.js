@@ -103,9 +103,15 @@ export async function GET() {
       }
     }
 
+    const bgVersionSetting = await prisma.setting.findUnique({
+      where: { key: 'RETAILER_BG_VERSION' }
+    });
+    const bgVersion = bgVersionSetting ? bgVersionSetting.value : null;
+
     return NextResponse.json({
       adminCount,
-      recentUploads
+      recentUploads,
+      bgVersion
     });
   } catch (error) {
     console.error('Fetch admin stats error:', error);

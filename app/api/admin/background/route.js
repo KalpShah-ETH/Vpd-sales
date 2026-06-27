@@ -72,3 +72,26 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request) {
+  const admin = await checkAdminAuth();
+  if (!admin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    // Delete the settings keys
+    await prisma.setting.deleteMany({
+      where: {
+        key: {
+          in: ['RETAILER_BG_DATA', 'RETAILER_BG_MIME', 'RETAILER_BG_VERSION']
+        }
+      }
+    });
+
+    return NextResponse.json({ success: true, message: 'Background image removed successfully' });
+  } catch (error) {
+    console.error('Remove background error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

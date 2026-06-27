@@ -16,7 +16,7 @@ export async function POST(request) {
   }
 
   try {
-    const { items } = await request.json();
+    const { items, fileName } = await request.json();
     
     if (!Array.isArray(items)) {
       return NextResponse.json({ error: 'Invalid payload: items must be an array' }, { status: 400 });
@@ -93,6 +93,36 @@ export async function POST(request) {
       await prisma.stockItem.createMany({
         data: newItems
       });
+    }
+
+    // 4. Log recent stock upload
+    try {
+      const uploadsSetting = await prisma.setting.findUnique({
+        where: { key: 'RECENT_STOCK_UPLOADS' }
+      });
+      let uploads = [];
+      if (uploadsSetting && uploadsSetting.value) {
+        try {
+          uploads = JSON.parse(uploadsSetting.value);
+        } catch (e) {
+          uploads = [];
+        }
+      }
+      uploads.unshift({
+        timestamp: new Date().toISOString(),
+        adminUsername: admin.username,
+        filename: fileName || 'global_stock.xlsx',
+        count: newItems.length
+      });
+      uploads = uploads.slice(0, 10); // Keep last 10 entries
+
+      await prisma.setting.upsert({
+        where: { key: 'RECENT_STOCK_UPLOADS' },
+        update: { value: JSON.stringify(uploads) },
+        create: { key: 'RECENT_STOCK_UPLOADS', value: JSON.stringify(uploads) }
+      });
+    } catch (logError) {
+      console.error('Failed to log stock upload:', logError);
     }
 
     return NextResponse.json({

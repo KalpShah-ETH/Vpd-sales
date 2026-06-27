@@ -23,6 +23,7 @@ export default function AdminDashboardClient() {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminCreateStatus, setAdminCreateStatus] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [adminStats, setAdminStats] = useState({ adminCount: 0, recentUploads: [] });
 
   // UI state
   const [loading, setLoading] = useState(false);
@@ -161,6 +162,7 @@ export default function AdminDashboardClient() {
     if (activeTab === 'retailers') fetchRetailers();
     if (activeTab === 'orders') fetchOrders();
     if (activeTab === 'preview') fetchCatalog();
+    if (activeTab === 'settings') fetchAdminStats();
   }, [activeTab]);
 
   // Show toast notification
@@ -273,7 +275,8 @@ export default function AdminDashboardClient() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          items: csvItems 
+          items: csvItems,
+          fileName: csvFileName
         })
       });
       const data = await res.json();
@@ -397,6 +400,18 @@ export default function AdminDashboardClient() {
     }
   };
 
+  const fetchAdminStats = async () => {
+    try {
+      const res = await fetch('/api/admin/create');
+      if (res.ok) {
+        const data = await res.json();
+        setAdminStats(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleAdminCreateSubmit = async (e) => {
     e.preventDefault();
     setAdminLoading(true);
@@ -414,6 +429,7 @@ export default function AdminDashboardClient() {
       setAdminForm({ username: '', password: '' });
       setShowAdminPassword(false);
       showToast('New admin registered successfully!');
+      fetchAdminStats(); // refresh count
     } catch (err) {
       setAdminCreateStatus(`Error: ${err.message}`);
       showErrorToast(err.message);
@@ -1294,6 +1310,10 @@ export default function AdminDashboardClient() {
                 <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '12px' }}>Create Admin Account</h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px', lineHeight: '1.5' }}>
                   Register a new administrator account with login credentials. Only active admins can create additional admins.
+                  <br />
+                  <span style={{ display: 'inline-block', marginTop: '12px', fontWeight: 'bold', color: 'var(--primary)' }}>
+                    🛡️ Currently registered admins: {adminStats.adminCount || 0}
+                  </span>
                 </p>
 
                 <form onSubmit={handleAdminCreateSubmit}>
@@ -1366,6 +1386,33 @@ export default function AdminDashboardClient() {
                     {adminLoading ? 'Creating...' : 'Create Admin'}
                   </button>
                 </form>
+              </div>
+
+              <div className="card" style={{ padding: '24px' }}>
+                <h2 style={{ fontSize: '18px', fontWeight: '700', marginBottom: '12px' }}>Recent Stock Uploads</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '20px', lineHeight: '1.5' }}>
+                  A history of the latest Shared Global Stock files uploaded to the system.
+                </p>
+                {adminStats.recentUploads && adminStats.recentUploads.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '320px', overflowY: 'auto' }}>
+                    {adminStats.recentUploads.map((upload, idx) => (
+                      <div key={idx} style={{ padding: '12px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-primary)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: '700' }}>
+                          <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '180px' }} title={upload.filename}>📁 {upload.filename}</span>
+                          <span style={{ color: 'var(--success)' }}>+{upload.count} items</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                          <span>By: @{upload.adminUsername}</span>
+                          <span>{new Date(upload.timestamp).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '14px' }}>
+                    No global stock uploads recorded yet.
+                  </div>
+                )}
               </div>
             </div>
           </div>

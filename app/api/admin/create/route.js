@@ -80,3 +80,35 @@ export async function POST(request) {
     );
   }
 }
+
+export async function GET() {
+  const admin = await checkAdminAuth();
+  if (!admin) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const adminCount = await prisma.admin.count();
+
+    const uploadsSetting = await prisma.setting.findUnique({
+      where: { key: 'RECENT_STOCK_UPLOADS' }
+    });
+
+    let recentUploads = [];
+    if (uploadsSetting && uploadsSetting.value) {
+      try {
+        recentUploads = JSON.parse(uploadsSetting.value);
+      } catch (e) {
+        recentUploads = [];
+      }
+    }
+
+    return NextResponse.json({
+      adminCount,
+      recentUploads
+    });
+  } catch (error) {
+    console.error('Fetch admin stats error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

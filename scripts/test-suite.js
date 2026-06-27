@@ -142,16 +142,20 @@ async function runTests() {
     // TEST 5: Salesman Stock Catalogue Management
     // -------------------------------------------------------------
     console.log('Test 5: Salesman Stock Creation...');
-    const createStockRes = await fetch(`${BASE_URL}/api/salesman/stock`, {
+    const createStockRes = await fetch(`${BASE_URL}/api/admin/salesman/bulk-stock`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Cookie': salesmanCookie
+        'Cookie': adminCookie
       },
       body: JSON.stringify({
-        name: 'Test Aspirin 100mg',
-        price: 85.50,
-        quantity: 100
+        items: [
+          {
+            name: 'Test Aspirin 100mg',
+            price: 85.50,
+            quantity: 100
+          }
+        ]
       })
     });
 
@@ -160,19 +164,18 @@ async function runTests() {
       throw new Error(`Stock item creation failed: ${createStockData.error}`);
     }
 
-    testStockItemId = createStockData.item.id;
-    console.log(`- Created Stock Item ID: ${testStockItemId}`);
-    
-    // Read and verify item
+    // Read and verify item as Salesman to get the generated ID
     const getStockRes = await fetch(`${BASE_URL}/api/salesman/stock?search=Test%20Aspirin`, {
       headers: { 'Cookie': salesmanCookie }
     });
     const stockResponse = await getStockRes.json();
     const stockList = Array.isArray(stockResponse) ? stockResponse : (stockResponse.items || []);
-    const foundItem = stockList.find(i => i.id === testStockItemId);
+    const foundItem = stockList.find(i => i.name.includes('Test Aspirin 100mg'));
     if (!foundItem || foundItem.quantity !== 100) {
       throw new Error('Stock item details mismatch in query');
     }
+    testStockItemId = foundItem.id;
+    console.log(`- Retrieved Stock Item ID: ${testStockItemId}`);
     console.log('✅ Salesman Catalogue verified!\n');
 
     // -------------------------------------------------------------

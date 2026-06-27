@@ -16,6 +16,12 @@ export async function GET(request) {
   }
 
   try {
+    const dbSalesman = await prisma.salesman.findUnique({
+      where: { id: salesman.id },
+      select: { canUploadStock: true }
+    });
+    const canUploadStock = dbSalesman ? dbSalesman.canUploadStock : false;
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page')) || 1;
     const search = searchParams.get('search') || '';
@@ -68,7 +74,8 @@ export async function GET(request) {
       })),
       totalItems: total,
       totalPages: Math.ceil(total / limit),
-      page
+      page,
+      canUploadStock
     });
   } catch (error) {
     console.error('Fetch salesman stock error:', error);

@@ -112,7 +112,8 @@ export default function AdminDashboardClient() {
     phone: '',
     username: '',
     password: '',
-    active: true
+    active: true,
+    canUploadStock: false
   });
 
   const [isRetailerModalOpen, setIsRetailerModalOpen] = useState(false);
@@ -538,7 +539,8 @@ export default function AdminDashboardClient() {
       phone: '',
       username: '',
       password: '',
-      active: true
+      active: true,
+      canUploadStock: false
     });
     setShowSalesmanPassword(false);
     setIsSalesmanModalOpen(true);
@@ -553,7 +555,8 @@ export default function AdminDashboardClient() {
       phone: salesman.phone,
       username: salesman.username,
       password: '', // Leave blank to keep existing
-      active: salesman.active
+      active: salesman.active,
+      canUploadStock: salesman.canUploadStock || false
     });
     setShowSalesmanPassword(false);
     setIsSalesmanModalOpen(true);
@@ -940,6 +943,7 @@ export default function AdminDashboardClient() {
                         <th>Company Representing</th>
                         <th>WhatsApp Routing</th>
                         <th>Username (Phone)</th>
+                        <th style={{ textAlign: 'center' }}>Stock Upload</th>
                         <th style={{ textAlign: 'center' }}>Actions</th>
                       </tr>
                     </thead>
@@ -956,6 +960,33 @@ export default function AdminDashboardClient() {
                           </td>
                           <td style={{ fontFamily: 'monospace' }}>{salesman.phone}</td>
                           <td style={{ fontWeight: '500' }}>{salesman.username}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <button
+                              className={`btn ${salesman.canUploadStock ? 'btn-success' : 'btn-secondary'}`}
+                              style={{ padding: '2px 8px', fontSize: '12px', minWidth: '80px' }}
+                              onClick={async () => {
+                                try {
+                                  // Optimistic update
+                                  setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, canUploadStock: !salesman.canUploadStock } : s));
+
+                                  const res = await fetch('/api/admin/salesman', {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ id: salesman.id, canUploadStock: !salesman.canUploadStock })
+                                  });
+                                  if (!res.ok) throw new Error('Failed to toggle upload permission');
+                                  showToast(`Stock upload permission ${!salesman.canUploadStock ? 'granted' : 'revoked'} successfully!`);
+                                  fetchSalesmen();
+                                } catch (err) {
+                                  // Revert on error
+                                  setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, canUploadStock: salesman.canUploadStock } : s));
+                                  showErrorToast(err.message);
+                                }
+                              }}
+                            >
+                              {salesman.canUploadStock ? 'Allowed' : 'Blocked'}
+                            </button>
+                          </td>
                           <td>
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                               <button 
@@ -1006,6 +1037,31 @@ export default function AdminDashboardClient() {
                         <div className="mobile-card-body">
                           <div><strong>Company:</strong> {salesman.companyName}</div>
                           <div><strong>Phone (Username):</strong> {salesman.phone}</div>
+                          <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <strong>Stock Upload:</strong>
+                            <button
+                              className={`btn ${salesman.canUploadStock ? 'btn-success' : 'btn-secondary'}`}
+                              style={{ padding: '2px 8px', fontSize: '11px' }}
+                              onClick={async () => {
+                                try {
+                                  setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, canUploadStock: !salesman.canUploadStock } : s));
+                                  const res = await fetch('/api/admin/salesman', {
+                                    method: 'PUT',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ id: salesman.id, canUploadStock: !salesman.canUploadStock })
+                                  });
+                                  if (!res.ok) throw new Error('Failed to toggle upload permission');
+                                  showToast(`Stock upload permission ${!salesman.canUploadStock ? 'granted' : 'revoked'} successfully!`);
+                                  fetchSalesmen();
+                                } catch (err) {
+                                  setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, canUploadStock: salesman.canUploadStock } : s));
+                                  showErrorToast(err.message);
+                                }
+                              }}
+                            >
+                              {salesman.canUploadStock ? 'Allowed' : 'Blocked'}
+                            </button>
+                          </div>
                         </div>
                         <div className="mobile-card-actions">
                           <button 
@@ -1566,20 +1622,35 @@ export default function AdminDashboardClient() {
                 </div>
               </div>
 
-              {editingSalesman && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '16px 0' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', margin: '16px 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <input
                     type="checkbox"
-                    id="salesman-active"
-                    checked={salesmanForm.active}
-                    onChange={(e) => setSalesmanForm({ ...salesmanForm, active: e.target.checked })}
+                    id="salesman-upload"
+                    checked={salesmanForm.canUploadStock}
+                    onChange={(e) => setSalesmanForm({ ...salesmanForm, canUploadStock: e.target.checked })}
                     style={{ width: '20px', height: '20px' }}
                   />
-                  <label htmlFor="salesman-active" className="form-label" style={{ cursor: 'pointer', margin: 0 }}>
-                    Account Active & Visible to Retailers
+                  <label htmlFor="salesman-upload" className="form-label" style={{ cursor: 'pointer', margin: 0 }}>
+                    Allow Stock File Upload (Global Shared Stock)
                   </label>
                 </div>
-              )}
+
+                {editingSalesman && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="checkbox"
+                      id="salesman-active"
+                      checked={salesmanForm.active}
+                      onChange={(e) => setSalesmanForm({ ...salesmanForm, active: e.target.checked })}
+                      style={{ width: '20px', height: '20px' }}
+                    />
+                    <label htmlFor="salesman-active" className="form-label" style={{ cursor: 'pointer', margin: 0 }}>
+                      Account Active & Visible to Retailers
+                    </label>
+                  </div>
+                )}
+              </div>
 
               <div className="modal-footer">
                 <button type="button" className="btn btn-secondary" onClick={() => setIsSalesmanModalOpen(false)}>

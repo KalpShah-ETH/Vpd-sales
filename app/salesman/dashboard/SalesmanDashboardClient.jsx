@@ -68,6 +68,7 @@ export default function SalesmanDashboardClient({ salesman }) {
   });
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [canUploadStock, setCanUploadStock] = useState(false);
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -157,6 +158,9 @@ export default function SalesmanDashboardClient({ salesman }) {
         const data = await res.json();
         setStockItems(data.items || []);
         setStockTotalPages(data.totalPages || 1);
+        if (data.canUploadStock !== undefined) {
+          setCanUploadStock(data.canUploadStock);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -363,7 +367,7 @@ export default function SalesmanDashboardClient({ salesman }) {
       const res = await fetch('/api/salesman/stock/bulk', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: csvItems })
+        body: JSON.stringify({ items: csvItems, fileName: csvFileName })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to upload items');
@@ -541,8 +545,20 @@ export default function SalesmanDashboardClient({ salesman }) {
             <div className="dashboard-header">
               <div>
                 <h1 className="dashboard-title">My Stock Catalogue</h1>
-                <p style={{ color: 'var(--text-muted)' }}>View products listed for {salesman.companyName}. Stock catalogue is uploaded and managed by administrators.</p>
+                <p style={{ color: 'var(--text-muted)' }}>
+                  {canUploadStock 
+                    ? `Upload or view products listed for ${salesman.companyName}. Updates take effect globally.` 
+                    : `View products listed for ${salesman.companyName}. Stock catalogue is uploaded and managed by administrators.`
+                  }
+                </p>
               </div>
+              {canUploadStock && (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button className="btn btn-secondary" onClick={() => setIsCsvModalOpen(true)}>
+                    📄 Upload CSV/XLSX
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Search filter */}
@@ -914,6 +930,122 @@ export default function SalesmanDashboardClient({ salesman }) {
 
 
 
+
+      {/* MODAL: CSV Upload */}
+      {canUploadStock && isCsvModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2 className="modal-title">Bulk Upload Medicines (CSV)</h2>
+              <button 
+                className="modal-close" 
+                onClick={() => {
+                  setIsCsvModalOpen(false);
+                  setCsvItems([]);
+                  setCsvFileName('');
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{ padding: '8px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginBottom: '16px', lineHeight: '1.5' }}>
+                Upload a CSV or XLSX file containing your stock catalog. The system will look for column headers like <strong>mfg</strong>, <strong>item name</strong>, <strong>pack</strong>, and <strong>Qty.</strong>. 
+                If headers are missing, we default to: Column 1 = Mfg, Column 2 = Item Name, Column 3 = Pack, Column 4 = Qty. Duplicates will be skipped automatically.
+              </p>
+              
+              <div className="form-group" style={{ border: '2px dashed var(--border-color)', padding: '24px', borderRadius: 'var(--radius-md)', textAlign: 'center', backgroundColor: 'var(--bg-primary)', marginBottom: '16px' }}>
+                <input
+                  type="file"
+                  id="csv-file-input"
+                  accept=".csv,.xlsx"
+                  onChange={handleCsvFileChange}
+                  style={{ display: 'none' }}
+                />
+                <label 
+                  htmlFor="csv-file-input" 
+                  style={{ cursor: 'pointer', display: 'block', fontWeight: '600', color: 'var(--primary)' }}
+                >
+                  {csvFileName ? `📄 Selected: ${csvFileName}` : '📂 Click to choose a CSV/XLSX file'}
+                </label>
+                {csvFileName && (
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    Click again to change file
+                  </p>
+                )}
+              </div>
+
+              {csvItems.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: '700', marginBottom: '8px', color: 'var(--text-muted)' }}>
+                    Parsed Preview ({csvItems.length} items found)
+                  </h3>
+                  <div style={{ maxHeight: '180px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', padding: '8px', backgroundColor: 'var(--bg-primary)' }}>
+                    <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-color)', textAlign: 'left', fontWeight: '700' }}>
+                          <th style={{ padding: '6px' }}>Mfg</th>
+                          <th style={{ padding: '6px' }}>Medicine Name</th>
+                          <th style={{ padding: '6px' }}>Pack</th>
+                          <th style={{ padding: '6px' }}>Quantity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvItems.slice(0, 100).map((item, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '6px', color: 'var(--text-muted)' }}>{item.mfg}</td>
+                            <td style={{ padding: '6px', fontWeight: '500' }}>{item.name}</td>
+                            <td style={{ padding: '6px' }}>{item.pack}</td>
+                            <td style={{ padding: '6px' }}>{item.quantity}</td>
+                          </tr>
+                        ))}
+                        {csvItems.length > 100 && (
+                          <tr>
+                            <td colSpan="4" style={{ padding: '8px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                              ... and {csvItems.length - 100} more items
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+              <button 
+                type="button" 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  setIsCsvModalOpen(false);
+                  setCsvItems([]);
+                  setCsvFileName('');
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-primary" 
+                disabled={csvItems.length === 0 || csvUploadLoading}
+                onClick={handleCsvUploadSubmit}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                {csvUploadLoading ? (
+                  <>
+                    <span className="spinner" style={{ width: '18px', height: '18px', borderWidth: '2px', borderTopColor: '#ffffff', margin: 0 }}></span>
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  `Upload ${csvItems.length} Products`
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Shared Confirm Modal */}
       <ConfirmModal

@@ -29,6 +29,7 @@ export async function GET() {
         phone: true,
         username: true,
         active: true,
+        canUploadStock: true,
         _count: {
           select: { orders: true }
         }
@@ -42,6 +43,7 @@ export async function GET() {
       phone: salesman.phone,
       username: salesman.username,
       active: salesman.active,
+      canUploadStock: salesman.canUploadStock,
       _count: {
         stockItems: 0, // Fallback as this is not displayed in the admin UI
         orders: salesman._count.orders
@@ -94,7 +96,7 @@ export async function POST(request) {
       return NextResponse.json({ success: true, count });
     }
 
-    const { name, companyName, phone, password } = body;
+    const { name, companyName, phone, password, canUploadStock } = body;
     const username = phone;
 
     if (!name || !companyName || !phone || !password) {
@@ -118,7 +120,8 @@ export async function POST(request) {
         phone,
         username,
         passwordHash,
-        active: true
+        active: true,
+        canUploadStock: canUploadStock || false
       }
     });
 
@@ -145,7 +148,7 @@ export async function PUT(request) {
   }
 
   try {
-    const { id, name, companyName, phone, password, active } = await request.json();
+    const { id, name, companyName, phone, password, active, canUploadStock } = await request.json();
     const username = phone;
 
     if (!id) {
@@ -173,6 +176,7 @@ export async function PUT(request) {
       updateData.username = phone;
     }
     if (active !== undefined) updateData.active = active;
+    if (canUploadStock !== undefined) updateData.canUploadStock = canUploadStock;
     
     if (password && password.trim() !== '') {
       updateData.passwordHash = await bcrypt.hash(password, 10);

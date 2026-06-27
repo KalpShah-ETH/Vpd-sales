@@ -15,16 +15,17 @@ model Admin {
 }
 
 model Salesman {
-  id           Int         @id @default(autoincrement())
-  name         String
-  companyName  String
-  phone        String      // Salesman's WhatsApp number
-  username     String      @unique
-  passwordHash String
-  active       Boolean     @default(true)
-  stockItems   StockItem[]
-  orders       Order[]
-  retailers    Retailer[]
+  id             Int         @id @default(autoincrement())
+  name           String
+  companyName    String
+  phone          String      // Salesman's WhatsApp number
+  username       String      @unique
+  passwordHash   String
+  active         Boolean     @default(true)
+  canUploadStock Boolean     @default(false)
+  stockItems     StockItem[]
+  orders         Order[]
+  retailers      Retailer[]
 }
 
 model Retailer {

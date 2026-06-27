@@ -85,9 +85,18 @@ export default function RetailerBrowseClient({ shopName }) {
   useEffect(() => {
     if (bgVersion) {
       document.body.style.backgroundImage = `url('/api/retailer/bg-image?v=${bgVersion}')`;
-      document.body.style.backgroundSize = 'cover';
-      document.body.style.backgroundPosition = 'center';
-      document.body.style.backgroundAttachment = 'fixed';
+      document.body.style.backgroundPosition = 'center center';
+      document.body.style.backgroundRepeat = 'no-repeat';
+      
+      // Dynamic scaling: stretch exactly on mobile, cover on desktop
+      const isMobile = typeof window !== 'undefined' && (window.innerWidth <= 768 || /Mobi|Android|iPhone/i.test(navigator.userAgent));
+      if (isMobile) {
+        document.body.style.backgroundSize = '100% 100%';
+        document.body.style.backgroundAttachment = 'scroll';
+      } else {
+        document.body.style.backgroundSize = 'cover';
+        document.body.style.backgroundAttachment = 'fixed';
+      }
     }
     return () => {
       document.body.style.backgroundImage = '';

@@ -466,23 +466,20 @@ export default function AdminDashboardClient() {
     }
   };
 
-  // Save Salesman (Create or Edit)
+  // Save Salesman (Create)
   const handleSalesmanSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const isEditing = !!editingSalesman;
       const url = '/api/admin/salesman';
-      const method = isEditing ? 'PUT' : 'POST';
+      const method = 'POST';
 
-      const cleanPhone = salesmanForm.phone.replace(/\D/g, '');
+      const cleanPhone = salesmanForm.phone.replace(/\\D/g, '');
       if (cleanPhone.length !== 10) {
         throw new Error('Salesman phone number must be exactly 10 digits');
       }
       
-      const payload = isEditing 
-        ? { id: editingSalesman.id, ...salesmanForm, username: salesmanForm.phone }
-        : { ...salesmanForm, username: salesmanForm.phone };
+      const payload = { ...salesmanForm, username: salesmanForm.phone };
 
       const res = await fetch(url, {
         method,
@@ -493,7 +490,7 @@ export default function AdminDashboardClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save salesman');
 
-      showToast(isEditing ? 'Salesman updated successfully!' : 'Salesman created successfully!');
+      showToast('Salesman created successfully!');
       setIsSalesmanModalOpen(false);
       fetchSalesmen();
       fetchCatalog();
@@ -546,21 +543,7 @@ export default function AdminDashboardClient() {
     setIsSalesmanModalOpen(true);
   };
 
-  // Open Salesman Modal for Edit
-  const openEditSalesmanModal = (salesman) => {
-    setEditingSalesman(salesman);
-    setSalesmanForm({
-      name: salesman.name,
-      companyName: salesman.companyName,
-      phone: salesman.phone,
-      username: salesman.username,
-      password: '', // Leave blank to keep existing
-      active: salesman.active,
-      canUploadStock: salesman.canUploadStock || false
-    });
-    setShowSalesmanPassword(false);
-    setIsSalesmanModalOpen(true);
-  };
+
 
   // Save Retailer (Edit Only)
   const handleRetailerSubmit = async (e) => {
@@ -962,35 +945,6 @@ export default function AdminDashboardClient() {
                           </td>
                           <td>
                             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                              <button 
-                                className={`btn ${salesman.active ? 'btn-secondary' : 'btn-primary'}`} 
-                                style={{ padding: '2px 6px', fontSize: '12px' }}
-                                onClick={async () => {
-                                  try {
-                                    // Optimistic update
-                                    setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, active: !salesman.active } : s));
-
-                                    const res = await fetch('/api/admin/salesman', {
-                                      method: 'PUT',
-                                      headers: { 'Content-Type': 'application/json' },
-                                      body: JSON.stringify({ id: salesman.id, active: !salesman.active })
-                                    });
-                                    if (!res.ok) throw new Error('Failed to toggle active status');
-                                    showToast(`Salesman ${!salesman.active ? 'activated' : 'deactivated'} successfully!`);
-                                    fetchSalesmen();
-                                    fetchCatalog();
-                                  } catch (err) {
-                                    // Revert on error
-                                    setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, active: salesman.active } : s));
-                                    showErrorToast(err.message);
-                                  }
-                                }}
-                              >
-                                {salesman.active ? 'Disable' : 'Enable'}
-                              </button>
-                              <button className="btn btn-secondary" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => openEditSalesmanModal(salesman)}>
-                                Edit
-                              </button>
                               <button className="btn btn-danger" style={{ padding: '2px 6px', fontSize: '12px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
                                 Del
                               </button>
@@ -1037,35 +991,6 @@ export default function AdminDashboardClient() {
                           </div>
                         </div>
                         <div className="mobile-card-actions">
-                          <button 
-                            className={`btn ${salesman.active ? 'btn-secondary' : 'btn-primary'}`} 
-                            style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }}
-                            onClick={async () => {
-                              try {
-                                // Optimistic update
-                                setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, active: !salesman.active } : s));
-
-                                const res = await fetch('/api/admin/salesman', {
-                                  method: 'PUT',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ id: salesman.id, active: !salesman.active })
-                                });
-                                if (!res.ok) throw new Error('Failed to toggle active status');
-                                showToast(`Salesman ${!salesman.active ? 'activated' : 'deactivated'} successfully!`);
-                                fetchSalesmen();
-                                fetchCatalog();
-                              } catch (err) {
-                                // Revert on error
-                                setSalesmen(prev => prev.map(s => s.id === salesman.id ? { ...s, active: salesman.active } : s));
-                                showErrorToast(err.message);
-                              }
-                            }}
-                          >
-                            {salesman.active ? 'Disable' : 'Enable'}
-                          </button>
-                          <button className="btn btn-secondary" style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }} onClick={() => openEditSalesmanModal(salesman)}>
-                            Edit
-                          </button>
                           <button className="btn btn-danger" style={{ flex: 1, minHeight: '32px', padding: '2px 6px', fontSize: '12px' }} onClick={() => handleDeleteSalesman(salesman.id)}>
                             Del
                           </button>

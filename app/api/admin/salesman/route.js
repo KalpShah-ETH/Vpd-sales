@@ -148,39 +148,14 @@ export async function PUT(request) {
   }
 
   try {
-    const { id, name, companyName, phone, password, active, canUploadStock } = await request.json();
-    const username = phone;
+    const { id, canUploadStock } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: 'Salesman ID is required' }, { status: 400 });
     }
 
-    // Check username uniqueness if changing phone number
-    if (username) {
-      const existing = await prisma.salesman.findFirst({
-        where: {
-          username,
-          id: { not: parseInt(id) }
-        }
-      });
-      if (existing) {
-        return NextResponse.json({ error: 'Salesman with this phone number already registered' }, { status: 400 });
-      }
-    }
-
     const updateData = {};
-    if (name) updateData.name = name;
-    if (companyName) updateData.companyName = companyName;
-    if (phone) {
-      updateData.phone = phone;
-      updateData.username = phone;
-    }
-    if (active !== undefined) updateData.active = active;
     if (canUploadStock !== undefined) updateData.canUploadStock = canUploadStock;
-    
-    if (password && password.trim() !== '') {
-      updateData.passwordHash = await bcrypt.hash(password, 10);
-    }
 
     const salesman = await prisma.salesman.update({
       where: { id: parseInt(id) },

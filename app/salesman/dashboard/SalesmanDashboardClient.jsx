@@ -272,6 +272,32 @@ export default function SalesmanDashboardClient({ salesman }) {
     }
   };
 
+  // Delete Past Orders
+  const handleDeletePastOrders = () => {
+    triggerConfirm(
+      'Delete Past Orders',
+      'Are you sure you want to delete all fulfilled orders? This cannot be undone.',
+      async () => {
+        setSubmittingId('delete_past');
+        try {
+          const res = await fetch('/api/salesman/orders?filter=FULFILLED', {
+            method: 'DELETE'
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to delete orders');
+          showToast(`Successfully deleted ${data.count} past orders!`);
+          fetchOrders();
+        } catch (err) {
+          showErrorToast(err.message);
+        } finally {
+          setSubmittingId(null);
+        }
+      },
+      true,
+      'Delete Orders'
+    );
+  };
+
   const handleCsvFileChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -678,25 +704,34 @@ export default function SalesmanDashboardClient({ salesman }) {
             </div>
 
             {/* Search and status filters */}
-            <div style={{ marginBottom: '20px', display: 'flex', gap: '12px', maxWidth: '600px' }}>
-              <input
-                type="text"
-                className="form-input"
-                style={{ flex: 1 }}
-                placeholder="Search by shop or product name..."
-                value={orderSearchQuery}
-                onChange={(e) => setOrderSearchQuery(e.target.value)}
-              />
-              <select
-                className="form-input"
-                style={{ width: '180px' }}
-                value={orderStatusFilter}
-                onChange={(e) => setOrderStatusFilter(e.target.value)}
+            <div style={{ marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '12px', flex: 1, minWidth: '300px', maxWidth: '600px' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  style={{ flex: 1 }}
+                  placeholder="Search by shop or product name..."
+                  value={orderSearchQuery}
+                  onChange={(e) => setOrderSearchQuery(e.target.value)}
+                />
+                <select
+                  className="form-input"
+                  style={{ width: '180px' }}
+                  value={orderStatusFilter}
+                  onChange={(e) => setOrderStatusFilter(e.target.value)}
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="PENDING">Pending Delivery</option>
+                  <option value="FULFILLED">Delivered</option>
+                </select>
+              </div>
+              <button 
+                className="btn btn-danger" 
+                onClick={handleDeletePastOrders}
+                disabled={!orders.some(o => o.status === 'FULFILLED')}
               >
-                <option value="ALL">All Statuses</option>
-                <option value="PENDING">Pending Delivery</option>
-                <option value="FULFILLED">Delivered</option>
-              </select>
+                Delete Past Orders
+              </button>
             </div>
 
             <div className="table-container">

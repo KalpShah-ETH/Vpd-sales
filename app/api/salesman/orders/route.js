@@ -70,3 +70,37 @@ export async function PUT(request) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request) {
+  const salesman = await checkSalesmanAuth();
+  if (!salesman) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const { searchParams } = new URL(request.url);
+    const filter = searchParams.get('filter'); // 'ALL' or 'FULFILLED'
+
+    const whereClause = {
+      salesmanId: salesman.id
+    };
+
+    // By default, only delete fulfilled orders unless 'ALL' is specified,
+    // but based on the prompt, it seems they want fulfilled orders deleted.
+    if (filter === 'FULFILLED') {
+      whereClause.status = 'FULFILLED';
+    } else {
+      // If no valid filter provided, let's default to deleting fulfilled
+      whereClause.status = 'FULFILLED';
+    }
+
+    const result = await prisma.order.deleteMany({
+      where: whereClause
+    });
+
+    return NextResponse.json({ success: true, count: result.count });
+  } catch (error) {
+    console.error('Delete orders error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

@@ -11,16 +11,19 @@ export async function POST(request) {
 
     if (!username || !password) {
       return NextResponse.json(
-        { error: 'Username and password are required' },
+        { error: 'Phone number and password are required' },
         { status: 400 }
       );
     }
     
+    // Clean phone number (username)
+    const cleanPhone = username.replace(/\D/g, '');
+    
     // Check lockout and fetch user in parallel
-    const [lockoutTime, salesman] = await Promise.all([
-      checkLockout(username),
-      prisma.salesman.findUnique({
-        where: { username },
+    const [lockoutTime, retailer] = await Promise.all([
+      checkLockout(cleanPhone),
+      prisma.retailer.findUnique({
+        where: { phone: cleanPhone },
       })
     ]);
 
@@ -32,49 +35,50 @@ export async function POST(request) {
       );
     }
 
-    if (!salesman) {
-      await handleFailedAttempt(username);
+    if (!retailer) {
+      await handleFailedAttempt(cleanPhone);
       return NextResponse.json(
-        { error: 'Wrong username or password' },
+        { error: 'Wrong phone number or password' },
         { status: 401 }
       );
     }
 
-    if (!salesman.active) {
+    if (!retailer.active) {
       return NextResponse.json(
-        { error: 'Account has been deactivated. Please contact administrator.' },
+        { error: 'Account has been deactivated. Please contact your salesman.' },
         { status: 403 }
       );
     }
 
-    const isMatch = await bcrypt.compare(password, salesman.passwordHash);
+    const isMatch = await bcrypt.compare(password, retailer.passwordHash);
     if (!isMatch) {
-      await handleFailedAttempt(username);
+      await handleFailedAttempt(cleanPhone);
       return NextResponse.json(
-        { error: 'Wrong username or password' },
+        { error: 'Wrong phone number or password' },
         { status: 401 }
       );
     }
 
-    await handleSuccessfulLogin(username);
+    await handleSuccessfulLogin(cleanPhone);
 
     // Login successful
     const token = signToken({
-      role: 'salesman',
-      id: salesman.id,
-      name: salesman.name,
-      companyName: salesman.companyName,
-      phone: salesman.phone
+      role: 'retailer',
+      id: retailer.id,
+      shopName: retailer.shopName,
+      phone: retailer.phone,
+      salesmanId: retailer.salesmanId
     });
 
     const response = NextResponse.json({ success: true, message: 'Logged in successfully' });
-    setAuthCookie(response, 'salesman_session', token);
+    // Use retailer_session as the cookie name to be consistent with existing logic if any
+    setAuthCookie(response, 'retailer_session', token);
     deleteAuthCookie(response, 'admin_session');
-    deleteAuthCookie(response, 'retailer_session');
+    deleteAuthCookie(response, 'salesman_session');
     
     return response;
   } catch (error) {
-    console.error('Salesman login error:', error);
+    console.error('Retailer login error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
@@ -82,15 +86,14 @@ export async function POST(request) {
   }
 }
 
-// Support logout
 export async function DELETE() {
   const cookieStore = await cookies();
-  const token = cookieStore.get('salesman_session')?.value;
+  const token = cookieStore.get('retailer_session')?.value;
   if (token) {
     await blacklistToken(token);
   }
 
   const response = NextResponse.json({ success: true, message: 'Logged out successfully' });
-  deleteAuthCookie(response, 'salesman_session');
+  deleteAuthCookie(response, 'retailer_session');
   return response;
 }

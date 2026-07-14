@@ -14,7 +14,6 @@ async function runTests() {
   
   let testSalesmanId = null;
   let testRetailerId = null;
-  let testRetailerToken = null;
   let testStockItemId = null;
   let testOrderId = null;
 
@@ -112,8 +111,7 @@ async function runTests() {
 
     // -------------------------------------------------------------
     // TEST 4: Salesman Retailer CRUD & Token Generation
-    // -------------------------------------------------------------
-    console.log('Test 4: Salesman Retailer Link & Token Gen...');
+    console.log('Test 4: Salesman Retailer Creation...');
     const createRetailerRes = await fetch(`${BASE_URL}/api/salesman/retailers`, {
       method: 'POST',
       headers: {
@@ -132,11 +130,8 @@ async function runTests() {
     }
 
     testRetailerId = createRetailerData.retailer.id;
-    testRetailerToken = createRetailerData.retailer.token;
     console.log(`- Created Retailer ID: ${testRetailerId}`);
-    console.log(`- Generated Access Token: ${testRetailerToken}`);
-    console.log(`- Access Link: ${BASE_URL}/r/${testRetailerToken}`);
-    console.log('✅ Retailer link setup verified!\n');
+    console.log('✅ Retailer setup verified!\n');
 
     // -------------------------------------------------------------
     // TEST 5: Salesman Stock Catalogue Management
@@ -179,24 +174,25 @@ async function runTests() {
     console.log('✅ Salesman Catalogue verified!\n');
 
     // -------------------------------------------------------------
-    // TEST 6: Retailer Autologin Redirection
+    // TEST 6: Retailer Phone Login
     // -------------------------------------------------------------
-    console.log('Test 6: Retailer Private Link Resolve...');
-    // Requesting the token API redirect
-    const autologinRes = await fetch(`${BASE_URL}/api/retailer/auth?token=${testRetailerToken}`, {
-      redirect: 'manual' // Prevent following redirect so we can read headers
+    console.log('Test 6: Retailer Phone Login...');
+    const autologinRes = await fetch(`${BASE_URL}/api/retailer/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: testRetailerPhone, password: testRetailerPhone })
     });
 
-    if (autologinRes.status !== 307 && autologinRes.status !== 302) {
-      throw new Error(`Autologin failed with status ${autologinRes.status}`);
+    if (autologinRes.status !== 200) {
+      throw new Error(`Retailer login failed with status ${autologinRes.status}`);
     }
 
     const retailerCookieHeader = autologinRes.headers.get('set-cookie');
     if (!retailerCookieHeader) {
-      throw new Error('No Set-Cookie header returned in Retailer Autologin');
+      throw new Error('No Set-Cookie header returned in Retailer Login');
     }
     retailerCookie = retailerCookieHeader.split(';')[0];
-    console.log('✅ Retailer autologin & session cookie verified!\n');
+    console.log('✅ Retailer login & session cookie verified!\n');
 
     // -------------------------------------------------------------
     // TEST 7: Retailer Browsing Catalog

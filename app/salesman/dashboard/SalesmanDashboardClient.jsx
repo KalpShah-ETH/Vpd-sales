@@ -465,9 +465,7 @@ export default function SalesmanDashboardClient({ salesman }) {
             ×
           </button>
         </div>
-        <div style={{ padding: '0 16px', margin: '-16px 0 16px 0', fontSize: '14px', color: 'var(--text-muted)' }}>
-          Rep: {salesman.name}
-        </div>
+
         <ul className="sidebar-menu" style={{ flex: 1 }}>
           <li>
             <button 
@@ -728,14 +726,14 @@ export default function SalesmanDashboardClient({ salesman }) {
                           <td>
                             <div style={{ fontWeight: '600' }}>{order.retailer?.shopName}</div>
                             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                              📞 <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a>
+                              <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a>
                             </div>
                           </td>
                           <td>{order.productName}</td>
                           <td>{order.quantity} strips</td>
                           <td>
                             <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
-                              {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
+                              {order.status === 'FULFILLED' ? 'Delivered' : 'Pending delivery'}
                             </span>
                           </td>
                           <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
@@ -748,7 +746,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                                 style={{ padding: '2px 6px', fontSize: '12px' }} 
                                 onClick={() => handleFulfillOrder(order.id)}
                               >
-                                ✓ Mark Delivered
+                                Mark Delivered
                               </button>
                             ) : (
                               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Done</span>
@@ -765,7 +763,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                         <div className="mobile-card-header">
                           <span style={{ fontWeight: '700', fontSize: '15px' }}>#{order.id}</span>
                           <span className={`badge ${order.status === 'FULFILLED' ? 'badge-success' : 'badge-warning'}`}>
-                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending'}
+                            {order.status === 'FULFILLED' ? 'Delivered' : 'Pending'}
                           </span>
                         </div>
                         <div className="mobile-card-body">
@@ -782,7 +780,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                               style={{ minHeight: '32px', fontSize: '12px', padding: '2px 6px' }} 
                               onClick={() => handleFulfillOrder(order.id)}
                             >
-                              ✓ Mark Delivered
+                              Mark Delivered
                             </button>
                           </div>
                         )}
@@ -803,7 +801,7 @@ export default function SalesmanDashboardClient({ salesman }) {
             <div className="dashboard-header">
               <div>
                 <h1 className="dashboard-title">Retailer Directory</h1>
-                <p style={{ color: 'var(--text-muted)' }}>Manage your assigned retailers, generate direct login links, and send invitations via WhatsApp.</p>
+                <p style={{ color: 'var(--text-muted)' }}>Manage your assigned retailers and send login invitations via WhatsApp.</p>
               </div>
             </div>
 
@@ -842,7 +840,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                     disabled={retailerLoading}
                     style={{ marginTop: '16px' }}
                   >
-                    {retailerLoading ? 'Creating...' : 'Create Retailer & Link'}
+                    {retailerLoading ? 'Creating...' : 'Create Retailer Account'}
                   </button>
                 </form>
               </div>
@@ -858,14 +856,6 @@ export default function SalesmanDashboardClient({ salesman }) {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '500px', overflowY: 'auto', paddingRight: '4px' }}>
                     {retailers.map((retailer) => {
-                      const loginLink = typeof window !== 'undefined' ? `${window.location.origin}/r/${retailer.token}` : '';
-                      let cleanPhone = retailer.phone.replace(/\D/g, '');
-                      if (cleanPhone.length === 10) {
-                        cleanPhone = '91' + cleanPhone;
-                      }
-                      const message = `Hello, this is ${salesman.name} representing ${salesman.companyName}. Here is your direct link to view our catalog and place orders: ${loginLink}`;
-                      const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-
                       return (
                         <div 
                           key={retailer.id} 
@@ -883,38 +873,11 @@ export default function SalesmanDashboardClient({ salesman }) {
                             </span>
                           </div>
                           <div style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '12px' }}>
-                            📞 WhatsApp: {retailer.phone}
+                            WhatsApp: {retailer.phone}
                           </div>
 
-                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                            <button
-                              className="btn btn-secondary"
-                              style={{ flex: 1, minWidth: '100px', fontSize: '12px', padding: '2px 6px' }}
-                              onClick={() => {
-                                navigator.clipboard.writeText(loginLink);
-                                showToast('Copied to clipboard!');
-                              }}
-                            >
-                              Copy Link
-                            </button>
-                            <a
-                              href={waUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-primary"
-                              style={{ 
-                                flex: 1, 
-                                minWidth: '120px', 
-                                fontSize: '12px', 
-                                padding: '2px 6px', 
-                                display: 'inline-flex', 
-                                justifyContent: 'center', 
-                                alignItems: 'center',
-                                textDecoration: 'none'
-                              }}
-                            >
-                              Send via WhatsApp
-                            </a>
+                          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                            Retailer login details are their whatsapp number.
                           </div>
                         </div>
                       );

@@ -21,7 +21,7 @@ function LoginPageContent() {
     fetch('/api/ping').catch(() => {});
 
     const roleParam = searchParams.get('role');
-    if (roleParam === 'admin' || roleParam === 'salesman') {
+    if (roleParam === 'admin' || roleParam === 'salesman' || roleParam === 'retailer') {
       setRole(roleParam);
     }
     const logoutParam = searchParams.get('logout');
@@ -41,10 +41,10 @@ function LoginPageContent() {
     setSuccess('');
     setLoading(true);
 
-    const loginApiEndpoint = role === 'admin' ? '/api/admin/login' : '/api/salesman/login';
-    const redirectDashboard = role === 'admin' ? '/admin/dashboard?login=success' : '/salesman/dashboard?login=success';
+    const loginApiEndpoint = role === 'admin' ? '/api/admin/login' : role === 'salesman' ? '/api/salesman/login' : '/api/retailer/login';
+    const redirectDashboard = role === 'admin' ? '/admin/dashboard?login=success' : role === 'salesman' ? '/salesman/dashboard?login=success' : '/browse';
 
-    if (role === 'salesman') {
+    if (role === 'salesman' || role === 'retailer') {
       const cleanPhone = username.replace(/\D/g, '');
       if (cleanPhone.length !== 10) {
         setError('Phone number must be exactly 10 digits');
@@ -112,6 +112,8 @@ function LoginPageContent() {
             onClick={() => {
               setRole('salesman');
               setError('');
+              setUsername('');
+              setPassword('');
             }}
             style={{
               flex: 1,
@@ -132,7 +134,7 @@ function LoginPageContent() {
               boxShadow: role === 'salesman' ? 'var(--shadow-sm)' : 'none'
             }}
           >
-            💼 Salesman
+            Salesman
           </button>
           <button
             type="button"
@@ -140,6 +142,8 @@ function LoginPageContent() {
             onClick={() => {
               setRole('admin');
               setError('');
+              setUsername('');
+              setPassword('');
             }}
             style={{
               flex: 1,
@@ -160,7 +164,37 @@ function LoginPageContent() {
               boxShadow: role === 'admin' ? 'var(--shadow-sm)' : 'none'
             }}
           >
-            🛡️ Admin
+            Admin
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              setRole('retailer');
+              setError('');
+              setUsername('');
+              setPassword('');
+            }}
+            style={{
+              flex: 1,
+              minHeight: '48px',
+              padding: '10px 12px',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              backgroundColor: role === 'retailer' ? 'var(--bg-card)' : 'transparent',
+              color: role === 'retailer' ? 'var(--primary)' : 'var(--text-muted)',
+              fontWeight: '600',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              transition: 'all 0.2s',
+              fontSize: '14px',
+              boxShadow: role === 'retailer' ? 'var(--shadow-sm)' : 'none'
+            }}
+          >
+            Retailer
           </button>
         </div>
 
@@ -248,24 +282,11 @@ function LoginPageContent() {
             className="btn btn-primary btn-full"
             disabled={loading}
           >
-            {loading ? 'Signing in...' : `Sign In as ${role === 'admin' ? 'Admin' : 'Salesman'}`}
+            {loading ? 'Signing in...' : `Sign In as ${role.charAt(0).toUpperCase() + role.slice(1)}`}
           </button>
         </form>
 
-        <div style={{
-          padding: '16px',
-          backgroundColor: 'var(--primary-light)',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border-color)',
-          textAlign: 'left'
-        }}>
-          <h2 style={{ fontSize: '15px', fontWeight: '700', color: 'var(--primary)', marginBottom: '6px' }}>
-            Are you a Retailer?
-          </h2>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-            Retailers do not need a password. Please tap the **unique private link** sent to your phone via WhatsApp to auto-authenticate and browse stocks instantly.
-          </p>
-        </div>
+
       </div>
 
       {/* TOAST POPUP NOTIFICATION */}

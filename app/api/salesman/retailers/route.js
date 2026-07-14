@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 import prisma from '@/lib/db';
 import { validateSession } from '@/lib/auth';
 
@@ -54,14 +54,13 @@ export async function POST(request) {
         }, { status: 400 });
       }
 
-      // If exists but has no salesman (e.g. legacy/admin created), assign it to this salesman and regenerate token
-      const token = crypto.randomBytes(16).toString('hex');
+      // If exists but has no salesman (e.g. legacy/admin created), assign it to this salesman and reset passwordHash
+      const passwordHash = await bcrypt.hash(cleanPhone, 10);
       const updated = await prisma.retailer.update({
         where: { phone: cleanPhone },
         data: {
           shopName: shopName.trim(),
-          token,
-          deviceKey: null, // Clear bound device key
+          passwordHash,
           active: true,
           salesmanId: salesman.id
         }
@@ -70,12 +69,12 @@ export async function POST(request) {
     }
 
     // Create new retailer assigned to this salesman
-    const token = crypto.randomBytes(16).toString('hex');
+    const passwordHash = await bcrypt.hash(cleanPhone, 10);
     const retailer = await prisma.retailer.create({
       data: {
         shopName: shopName.trim(),
         phone: cleanPhone,
-        token,
+        passwordHash,
         active: true,
         salesmanId: salesman.id
       }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import crypto from 'crypto';
+
 import prisma from '@/lib/db';
 import { validateSession } from '@/lib/auth';
 
@@ -69,10 +69,7 @@ export async function PUT(request) {
       updateData.phone = phone.trim();
     }
     if (active !== undefined) updateData.active = active;
-    if (regenerateToken) {
-      updateData.token = crypto.randomBytes(16).toString('hex');
-      updateData.deviceKey = null; // Clear bound device key
-    }
+
 
     const retailer = await prisma.retailer.update({
       where: { id: parseInt(id) },

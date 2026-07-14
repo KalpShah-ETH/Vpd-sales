@@ -607,29 +607,6 @@ export default function AdminDashboardClient() {
     }
   };
 
-  // Regenerate Retailer Link/Token
-  const regenerateRetailerLink = (id) => {
-    triggerConfirm(
-      'Regenerate Access Link',
-      'This will invalidate their existing private link. Regenerate link now? Note: Retailers using the old link will immediately lose access.',
-      async () => {
-        try {
-          const res = await fetch('/api/admin/retailer', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, regenerateToken: true })
-          });
-          if (!res.ok) throw new Error('Failed to regenerate link');
-          showToast('New link generated successfully!');
-          fetchRetailers();
-        } catch (err) {
-          showErrorToast(err.message);
-        }
-      },
-      true,
-      'Regenerate'
-    );
-  };
 
   // Delete Retailer
   const handleDeleteRetailer = (id) => {
@@ -750,11 +727,7 @@ export default function AdminDashboardClient() {
       setLoading(false);
     }
   };
-  const handleCopyLink = (token) => {
-    const link = `${hostUrl}/r/${token}`;
-    navigator.clipboard.writeText(link);
-    showToast('Copied private link to clipboard!');
-  };
+
 
   // Search Filtered Retailers
   const filteredRetailers = useMemo(() => {
@@ -1157,14 +1130,14 @@ export default function AdminDashboardClient() {
                           <td>
                             <div style={{ fontWeight: '600' }}>{order.retailer?.shopName}</div>
                             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                              📞 <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a>
+                              <a href={`tel:${order.retailer?.phone}`} style={{ color: 'inherit', textDecoration: 'underline' }}>{order.retailer?.phone}</a>
                             </div>
                           </td>
                           <td style={{ textTransform: 'uppercase', fontWeight: '500' }}>
                             {order.salesman?.companyName}
                           </td>
                           <td style={{ color: order.status === 'FULFILLED' ? 'var(--success)' : 'var(--warning)', fontWeight: '600' }}>
-                            {order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending delivery'}
+                            {order.status === 'FULFILLED' ? 'Delivered' : 'Pending delivery'}
                           </td>
                           <td style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
                             {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1180,7 +1153,7 @@ export default function AdminDashboardClient() {
                         <div className="mobile-card-body">
                           <div><strong>Shop Name:</strong> {order.retailer?.shopName}</div>
                           <div><strong>Pharma Company:</strong> <span style={{ textTransform: 'uppercase', fontWeight: '500' }}>{order.salesman?.companyName}</span></div>
-                          <div><strong>Routing Status:</strong> <span style={{ color: order.status === 'FULFILLED' ? 'var(--success)' : 'var(--warning)', fontWeight: '600' }}>{order.status === 'FULFILLED' ? '✓ Delivered' : '⏳ Pending'}</span></div>
+                          <div><strong>Routing Status:</strong> <span style={{ color: order.status === 'FULFILLED' ? 'var(--success)' : 'var(--warning)', fontWeight: '600' }}>{order.status === 'FULFILLED' ? 'Delivered' : 'Pending'}</span></div>
                           <div><strong>Time:</strong> {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                         </div>
                       </div>

@@ -60,6 +60,8 @@ export async function POST(request) {
 
     const response = NextResponse.json({ success: true, message: 'Logged in successfully' });
     setAuthCookie(response, 'admin_session', token);
+    deleteAuthCookie(response, 'salesman_session');
+    deleteAuthCookie(response, 'retailer_session');
     
     return response;
   } catch (error) {

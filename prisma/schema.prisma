@@ -29,15 +29,14 @@ model Salesman {
 }
 
 model Retailer {
-  id         Int       @id @default(autoincrement())
-  shopName   String
-  phone      String    @unique
-  token      String    @unique // Secure unique token for silent login URL
-  deviceKey  String?   // Tethers the link to a single browser/device
-  active     Boolean   @default(true)
-  salesmanId Int?
-  salesman   Salesman? @relation(fields: [salesmanId], references: [id], onDelete: Cascade)
-  orders     Order[]
+  id           Int       @id @default(autoincrement())
+  shopName     String
+  phone        String    @unique
+  passwordHash String    @default("") // Phone number hashed via bcrypt
+  active       Boolean   @default(true)
+  salesmanId   Int?
+  salesman     Salesman? @relation(fields: [salesmanId], references: [id], onDelete: Cascade)
+  orders       Order[]
 
   @@index([salesmanId])
 }
@@ -63,7 +62,7 @@ model Order {
   salesman    Salesman @relation(fields: [salesmanId], references: [id], onDelete: Cascade)
   productName String   // Name of product at time of order
   quantity    Int
-  price       Float    // Price of product at time of order
+  price       Float    @default(0.0) // Price of product at time of order
   status      String   @default("PENDING") // PENDING or FULFILLED
   createdAt   DateTime @default(now())
 

@@ -910,7 +910,7 @@ export default function AdminDashboardClient() {
                             <div style={{ fontWeight: '600' }}>{salesman.name}</div>
                           </td>
                           <td>
-                            <div className="badge badge-neutral" style={{ textTransform: 'uppercase' }}>
+                            <div style={{ textTransform: 'uppercase', fontWeight: '500' }}>
                               {salesman.companyName}
                             </div>
                           </td>

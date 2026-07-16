@@ -3,6 +3,20 @@ import { cookies } from 'next/headers';
 import prisma from '@/lib/db';
 import { validateSession } from '@/lib/auth';
 
+let cachedGlobalSalesman = null;
+async function getGlobalSalesman() {
+  if (cachedGlobalSalesman !== null) return cachedGlobalSalesman;
+  const gs = await prisma.salesman.findUnique({
+    where: { username: 'admin_global' },
+    select: {
+      id: true,
+      _count: { select: { stockItems: true } }
+    }
+  });
+  cachedGlobalSalesman = gs || null;
+  return cachedGlobalSalesman;
+}
+
 export async function GET(request) {
   const cookieStore = await cookies();
   
@@ -26,14 +40,8 @@ export async function GET(request) {
 
     const whereClause = { active: true, NOT: { username: 'admin_global' } };
 
-    if (retailer) {
-      const dbRetailer = await prisma.retailer.findUnique({
-        where: { id: retailer.id },
-        select: { salesmanId: true }
-      });
-      if (dbRetailer && dbRetailer.salesmanId) {
-        whereClause.id = dbRetailer.salesmanId;
-      }
+    if (retailer && retailer.salesmanId) {
+      whereClause.id = retailer.salesmanId;
     }
 
     if (targetCompanyId) {
@@ -41,30 +49,22 @@ export async function GET(request) {
     }
 
     if (!targetCompanyId) {
-      const [companies, globalSalesman] = await Promise.all([
-        prisma.salesman.findMany({
-          where: whereClause,
-          select: {
-            id: true,
-            name: true,
-            companyName: true,
-            phone: true,
-            _count: {
-              select: { stockItems: true }
-            }
-          },
-          orderBy: { companyName: 'asc' }
-        }),
-        prisma.salesman.findUnique({
-          where: { username: 'admin_global' },
-          select: {
-            _count: {
-              select: { stockItems: true }
-            }
+      const globalSalesman = await getGlobalSalesman();
+      const companies = await prisma.salesman.findMany({
+        where: whereClause,
+        select: {
+          id: true,
+          name: true,
+          companyName: true,
+          phone: true,
+          _count: {
+            select: { stockItems: true }
           }
-        })
-      ]);
-      const globalCount = globalSalesman?._count.stockItems || 0;
+        },
+        orderBy: { companyName: 'asc' }
+      });
+      
+      const globalCount = globalSalesman?._count?.stockItems || 0;
 
       const result = companies.map(c => ({
         id: c.id,
@@ -83,10 +83,7 @@ export async function GET(request) {
     const limit = 50;
     const skip = (page - 1) * limit;
 
-    const globalSalesman = await prisma.salesman.findUnique({
-      where: { username: 'admin_global' },
-      select: { id: true }
-    });
+    const globalSalesman = await getGlobalSalesman();
     const globalSalesmanId = globalSalesman?.id;
 
     const searchFilter = search ? {

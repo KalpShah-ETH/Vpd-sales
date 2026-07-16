@@ -56,7 +56,7 @@ export async function POST(request) {
       );
     }
 
-    await handleSuccessfulLogin(username);
+    handleSuccessfulLogin(username).catch(console.error);
 
     // Login successful
     const token = signToken({
@@ -64,7 +64,8 @@ export async function POST(request) {
       id: salesman.id,
       name: salesman.name,
       companyName: salesman.companyName,
-      phone: salesman.phone
+      phone: salesman.phone,
+      canUploadStock: salesman.canUploadStock
     });
 
     const response = NextResponse.json({ success: true, message: 'Logged in successfully' });

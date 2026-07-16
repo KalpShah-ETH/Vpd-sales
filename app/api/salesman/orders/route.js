@@ -9,23 +9,41 @@ async function checkSalesmanAuth() {
   return await validateSession(cookieStore, 'salesman_session', 'salesman');
 }
 
-export async function GET() {
+export async function GET(request) {
   const salesman = await checkSalesmanAuth();
   if (!salesman) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    const orders = await prisma.order.findMany({
-      where: { salesmanId: salesman.id },
-      include: {
-        retailer: {
-          select: { shopName: true, phone: true }
-        }
-      },
-      orderBy: { createdAt: 'desc' }
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page')) || 1;
+    const limit = 50;
+    const skip = (page - 1) * limit;
+    
+    const whereClause = { salesmanId: salesman.id };
+
+    const [orders, total] = await Promise.all([
+      prisma.order.findMany({
+        where: whereClause,
+        include: {
+          retailer: {
+            select: { shopName: true, phone: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip
+      }),
+      prisma.order.count({ where: whereClause })
+    ]);
+
+    return NextResponse.json({
+      orders,
+      total,
+      totalPages: Math.ceil(total / limit),
+      page
     });
-    return NextResponse.json(orders);
   } catch (error) {
     console.error('Fetch salesman orders error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

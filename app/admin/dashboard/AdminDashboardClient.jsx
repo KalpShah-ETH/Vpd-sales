@@ -36,6 +36,8 @@ export default function AdminDashboardClient() {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [previewPage, setPreviewPage] = useState(1);
   const [previewTotalPages, setPreviewTotalPages] = useState(1);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersTotalPages, setOrdersTotalPages] = useState(1);
   const [companyLoadingId, setCompanyLoadingId] = useState(null);
 
   const handleSelectCompany = async (companyId) => {
@@ -170,11 +172,17 @@ export default function AdminDashboardClient() {
 
   useEffect(() => {
     const loadDashboard = async () => {
-      await Promise.all([fetchSalesmen(), fetchOrders(), fetchCatalog()]);
+      await Promise.all([fetchSalesmen(), fetchOrders(ordersPage), fetchCatalog()]);
       setDataLoaded(true);
     };
     loadDashboard();
   }, []);
+
+  useEffect(() => {
+    if (dataLoaded && activeTab === 'orders') {
+      fetchOrders(ordersPage);
+    }
+  }, [ordersPage, activeTab]);
 
   useEffect(() => {
     if (selectedCompanyId) {
@@ -349,20 +357,19 @@ export default function AdminDashboardClient() {
   };
 
   // API Call: Fetch Orders
-  const fetchOrders = async () => {
+  const fetchOrders = async (page = 1) => {
     try {
-      const res = await fetch('/api/admin/orders');
+      const res = await fetch(`/api/admin/orders?page=${page}`);
       if (res.ok) {
         const data = await res.json();
-        setOrders(data);
+        setOrders(data.orders || []);
+        setOrdersTotalPages(data.totalPages || 1);
         
-        // Calculate statistics
-        const pending = data.filter(o => o.status === 'PENDING').length;
-        const fulfilled = data.filter(o => o.status === 'FULFILLED').length;
+        // Calculate statistics from the API response
         setStats({
-          totalOrders: data.length,
-          pendingOrders: pending,
-          fulfilledOrders: fulfilled
+          totalOrders: data.total || 0,
+          pendingOrders: data.pendingCount || 0,
+          fulfilledOrders: data.fulfilledCount || 0
         });
       }
     } catch (err) {
@@ -1123,6 +1130,28 @@ export default function AdminDashboardClient() {
                 </>
               )}
             </div>
+            {/* Orders Pagination Controls */}
+            {ordersTotalPages > 1 && (
+              <div className="mobile-pagination-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '16px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  disabled={ordersPage <= 1}
+                  onClick={() => { setOrdersPage(prev => Math.max(1, prev - 1)); window.scrollTo(0, 0); }}
+                >
+                  ◀ Previous
+                </button>
+                <span style={{ fontWeight: '600', color: 'var(--text-muted)' }}>
+                  Page {ordersPage} of {ordersTotalPages}
+                </span>
+                <button 
+                  className="btn btn-secondary" 
+                  disabled={ordersPage >= ordersTotalPages}
+                  onClick={() => { setOrdersPage(prev => Math.min(ordersTotalPages, prev + 1)); window.scrollTo(0, 0); }}
+                >
+                  Next ▶
+                </button>
+              </div>
+            )}
           </div>
         )}
 

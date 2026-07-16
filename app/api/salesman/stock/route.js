@@ -9,6 +9,17 @@ async function checkSalesmanAuth() {
   return await validateSession(cookieStore, 'salesman_session', 'salesman');
 }
 
+let cachedAdminGlobalId = null;
+async function getAdminGlobalId() {
+  if (cachedAdminGlobalId) return cachedAdminGlobalId;
+  const gs = await prisma.salesman.findUnique({
+    where: { username: 'admin_global' },
+    select: { id: true }
+  });
+  cachedAdminGlobalId = gs?.id || null;
+  return cachedAdminGlobalId;
+}
+
 export async function GET(request) {
   const salesman = await checkSalesmanAuth();
   if (!salesman) {
@@ -16,11 +27,7 @@ export async function GET(request) {
   }
 
   try {
-    const dbSalesman = await prisma.salesman.findUnique({
-      where: { id: salesman.id },
-      select: { canUploadStock: true }
-    });
-    const canUploadStock = dbSalesman ? dbSalesman.canUploadStock : false;
+    const canUploadStock = salesman.canUploadStock || false;
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page')) || 1;
@@ -28,13 +35,10 @@ export async function GET(request) {
     const limit = 50;
     const skip = (page - 1) * limit;
 
-    const globalSalesman = await prisma.salesman.findUnique({
-      where: { username: 'admin_global' },
-      select: { id: true }
-    });
+    const globalSalesmanId = await getAdminGlobalId();
 
     const where = {
-      salesmanId: { in: [salesman.id, globalSalesman?.id].filter(Boolean) },
+      salesmanId: { in: [salesman.id, globalSalesmanId].filter(Boolean) },
       ...(search ? {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
@@ -70,7 +74,7 @@ export async function GET(request) {
         quantity: i.quantity,
         mfg: i.mfg,
         pack: i.pack,
-        isAdminGlobal: i.salesmanId === globalSalesman?.id
+        isAdminGlobal: i.salesmanId === globalSalesmanId
       })),
       totalItems: total,
       totalPages: Math.ceil(total / limit),

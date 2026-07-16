@@ -25,6 +25,8 @@ export default function SalesmanDashboardClient({ salesman }) {
   const [stockTotalPages, setStockTotalPages] = useState(1);
   const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('ALL'); // ALL, PENDING, FULFILLED
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersTotalPages, setOrdersTotalPages] = useState(1);
   const [submittingId, setSubmittingId] = useState(null);
 
 
@@ -93,14 +95,18 @@ export default function SalesmanDashboardClient({ salesman }) {
         router.replace('/salesman/dashboard');
       }
     }
-    Promise.all([
-      fetchStock(1, ''),
-      fetchOrders(),
-      fetchRetailers()
-    ]).finally(() => {
+    const loadDashboard = async () => {
+      await Promise.all([fetchStock(stockPage, debouncedStockSearchQuery), fetchOrders(ordersPage), fetchRetailers()]);
       setDataLoaded(true);
-    });
+    };
+    loadDashboard();
   }, []);
+
+  useEffect(() => {
+    if (dataLoaded && activeTab === 'orders') {
+      fetchOrders(ordersPage);
+    }
+  }, [ordersPage, activeTab]);
 
   useEffect(() => {
     if (dataLoaded) {
@@ -179,12 +185,13 @@ export default function SalesmanDashboardClient({ salesman }) {
 
 
   // API Call: Fetch orders
-  const fetchOrders = async () => {
+  const fetchOrders = async (page = 1) => {
     try {
-      const res = await fetch('/api/salesman/orders');
+      const res = await fetch(`/api/salesman/orders?page=${page}`);
       if (res.ok) {
         const data = await res.json();
-        setOrders(data);
+        setOrders(data.orders || []);
+        setOrdersTotalPages(data.totalPages || 1);
       }
     } catch (err) {
       console.error(err);
@@ -837,12 +844,32 @@ export default function SalesmanDashboardClient({ salesman }) {
                 </>
               )}
             </div>
+            {/* Orders Pagination Controls */}
+            {ordersTotalPages > 1 && (
+              <div className="mobile-pagination-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '16px' }}>
+                <button 
+                  className="btn btn-secondary" 
+                  disabled={ordersPage <= 1}
+                  onClick={() => { setOrdersPage(prev => Math.max(1, prev - 1)); window.scrollTo(0, 0); }}
+                >
+                  ◀ Previous
+                </button>
+                <span style={{ fontWeight: '600', color: 'var(--text-muted)' }}>
+                  Page {ordersPage} of {ordersTotalPages}
+                </span>
+                <button 
+                  className="btn btn-secondary" 
+                  disabled={ordersPage >= ordersTotalPages}
+                  onClick={() => { setOrdersPage(prev => Math.min(ordersTotalPages, prev + 1)); window.scrollTo(0, 0); }}
+                >
+                  Next ▶
+                </button>
+              </div>
+            )}
           </div>
         )}
 
-
-
-        {/* TAB 4: Retailer Directory */}
+        {/* TAB 3: Retailers Network */}
         {activeTab === 'retailers' && (
           <div>
             <div className="dashboard-header">

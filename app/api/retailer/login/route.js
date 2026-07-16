@@ -77,7 +77,7 @@ export async function POST(request) {
       );
     }
 
-    await handleSuccessfulLogin(cleanPhone);
+    handleSuccessfulLogin(cleanPhone).catch(console.error);
 
     // Login successful
     const token = signToken({

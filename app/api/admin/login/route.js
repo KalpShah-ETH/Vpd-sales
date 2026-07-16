@@ -49,7 +49,7 @@ export async function POST(request) {
       );
     }
 
-    await handleSuccessfulLogin(username);
+    handleSuccessfulLogin(username).catch(console.error);
 
     // Login successful
     const token = signToken({

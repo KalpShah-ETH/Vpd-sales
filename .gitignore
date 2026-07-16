@@ -42,3 +42,6 @@ next-env.d.ts
 
 # blacklist token store
 lib/blacklist.json
+
+# databases
+*.db

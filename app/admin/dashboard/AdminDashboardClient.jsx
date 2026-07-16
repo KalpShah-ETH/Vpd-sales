@@ -25,6 +25,10 @@ export default function AdminDashboardClient() {
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [adminStats, setAdminStats] = useState({ adminCount: 0, recentUploads: [] });
 
+  // Performance states
+  const [isMobile, setIsMobile] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
   // UI state
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', isError: false });
@@ -135,6 +139,18 @@ export default function AdminDashboardClient() {
   const [hostUrl, setHostUrl] = useState('');
 
   useEffect(() => {
+    // Non-blocking ping call
+    fetch('/api/ping').catch(() => {});
+    
+    // Check mobile screen size
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
     }, 250);
@@ -150,7 +166,14 @@ export default function AdminDashboardClient() {
         router.replace('/admin/dashboard');
       }
     }
-    fetchSalesmen(); // only default tab
+  }, []);
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      await Promise.all([fetchSalesmen(), fetchOrders(), fetchCatalog()]);
+      setDataLoaded(true);
+    };
+    loadDashboard();
   }, []);
 
   useEffect(() => {
@@ -731,6 +754,15 @@ export default function AdminDashboardClient() {
     return selectedCompany?.stockItems || [];
   }, [selectedCompany?.stockItems]);
 
+  if (!dataLoaded) {
+    return (
+      <div className="loader-container">
+        <div className="spinner"></div>
+        <p style={{ fontWeight: '600', color: 'var(--text-muted)' }}>Loading Dashboard...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-grid">
       {/* Sidebar Backdrop for Mobile */}
@@ -892,7 +924,8 @@ export default function AdminDashboardClient() {
                 </div>
               ) : (
                 <>
-                  <table className="data-table">
+                  {!isMobile ? (
+                    <table className="data-table">
                     <thead>
                       <tr>
                         <th>Salesman Details</th>
@@ -954,7 +987,7 @@ export default function AdminDashboardClient() {
                       ))}
                     </tbody>
                   </table>
-
+                  ) : (
                   <div className="mobile-card-list">
                     {salesmen.map((salesman) => (
                       <div key={salesman.id} className="mobile-card">
@@ -998,6 +1031,7 @@ export default function AdminDashboardClient() {
                       </div>
                     ))}
                   </div>
+                  )}
                 </>
               )}
             </div>
@@ -1040,6 +1074,7 @@ export default function AdminDashboardClient() {
                 </div>
               ) : (
                 <>
+                  {!isMobile ? (
                   <table className="data-table">
                     <thead>
                       <tr>
@@ -1071,7 +1106,7 @@ export default function AdminDashboardClient() {
                       ))}
                     </tbody>
                   </table>
-
+                  ) : (
                   <div className="mobile-card-list">
                     {orders.map((order) => (
                       <div key={order.id} className="mobile-card">
@@ -1084,6 +1119,7 @@ export default function AdminDashboardClient() {
                       </div>
                     ))}
                   </div>
+                  )}
                 </>
               )}
             </div>

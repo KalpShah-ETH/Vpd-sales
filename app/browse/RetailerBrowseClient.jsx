@@ -67,6 +67,13 @@ export default function RetailerBrowseClient({ shopName }) {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('login') === 'success') {
+        setToast({ visible: true, message: 'Logged in successfully!', isError: false });
+        setTimeout(() => setToast({ visible: false, message: '', isError: false }), 3000);
+        window.history.replaceState({}, '', '/browse');
+      }
+
       const cached = sessionStorage.getItem('bgVersion');
       if (cached) {
         setBgVersion(cached);
@@ -74,7 +81,8 @@ export default function RetailerBrowseClient({ shopName }) {
         fetchSettings();
       }
       if (sessionStorage.getItem('last_order_placed') === 'true') {
-        showToast('Order successfully saved!');
+        setToast({ visible: true, message: 'Order successfully saved!', isError: false });
+        setTimeout(() => setToast({ visible: false, message: '', isError: false }), 3000);
         sessionStorage.removeItem('last_order_placed');
       }
     } else {

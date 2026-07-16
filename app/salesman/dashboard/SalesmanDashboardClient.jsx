@@ -18,6 +18,7 @@ export default function SalesmanDashboardClient({ salesman }) {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ visible: false, message: '', isError: false });
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [stockSearchQuery, setStockSearchQuery] = useState('');
   const [debouncedStockSearchQuery, setDebouncedStockSearchQuery] = useState('');
   const [stockPage, setStockPage] = useState(1);
@@ -74,7 +75,14 @@ export default function SalesmanDashboardClient({ salesman }) {
     const handler = setTimeout(() => {
       setDebouncedStockSearchQuery(stockSearchQuery);
     }, 250);
-    return () => clearTimeout(handler);
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
+    return () => {
+      clearTimeout(handler);
+      window.removeEventListener('resize', checkMobile);
+    };
   }, [stockSearchQuery]);
 
   useEffect(() => {
@@ -609,6 +617,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                 </div>
               ) : (
                 <>
+                  {!isMobile ? (
                   <table className="data-table">
                     <thead>
                       <tr>
@@ -637,7 +646,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                       ))}
                     </tbody>
                   </table>
-
+                  ) : (
                   <div className="mobile-card-list">
                     {stockItems.map((item) => (
                       <div key={item.id} className={`mobile-card ${item.quantity === 0 ? 'out-of-stock' : ''}`} style={item.quantity === 0 ? { opacity: 0.6 } : {}}>
@@ -652,6 +661,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                       </div>
                     ))}
                   </div>
+                  )}
                 </>
               )}
             </div>
@@ -742,6 +752,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                 </div>
               ) : (
                 <>
+                  {!isMobile ? (
                   <table className="data-table">
                     <thead>
                       <tr>
@@ -791,7 +802,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                       ))}
                     </tbody>
                   </table>
-
+                  ) : (
                   <div className="mobile-card-list">
                     {filteredOrders.map((order) => (
                       <div key={order.id} className="mobile-card">
@@ -822,6 +833,7 @@ export default function SalesmanDashboardClient({ salesman }) {
                       </div>
                     ))}
                   </div>
+                  )}
                 </>
               )}
             </div>

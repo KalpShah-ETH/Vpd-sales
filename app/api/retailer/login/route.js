@@ -50,8 +50,26 @@ export async function POST(request) {
       );
     }
 
-    const isMatch = await bcrypt.compare(password, retailer.passwordHash);
-    if (!isMatch) {
+    let isValid = false;
+
+    if (!retailer.passwordHash) {
+      // Fallback for legacy retailers created before the password system.
+      // Their expected password is their phone number.
+      if (password === cleanPhone) {
+        isValid = true;
+        // Hash it and save it so they have a normal hash going forward
+        const salt = await bcrypt.genSalt(10);
+        const hashed = await bcrypt.hash(password, salt);
+        await prisma.retailer.update({
+          where: { id: retailer.id },
+          data: { passwordHash: hashed }
+        });
+      }
+    } else {
+      isValid = await bcrypt.compare(password, retailer.passwordHash);
+    }
+
+    if (!isValid) {
       await handleFailedAttempt(cleanPhone);
       return NextResponse.json(
         { error: 'Wrong phone number or password' },

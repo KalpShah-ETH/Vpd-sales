@@ -42,7 +42,7 @@ function LoginPageContent() {
     setLoading(true);
 
     const loginApiEndpoint = role === 'admin' ? '/api/admin/login' : role === 'salesman' ? '/api/salesman/login' : '/api/retailer/login';
-    const redirectDashboard = role === 'admin' ? '/admin/dashboard?login=success' : role === 'salesman' ? '/salesman/dashboard?login=success' : '/browse';
+    const redirectDashboard = role === 'admin' ? '/admin/dashboard?login=success' : role === 'salesman' ? '/salesman/dashboard?login=success' : '/browse?login=success';
 
     if (role === 'salesman' || role === 'retailer') {
       const cleanPhone = username.replace(/\D/g, '');

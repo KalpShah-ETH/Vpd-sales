@@ -1205,7 +1205,7 @@ export default function AdminDashboardClient() {
               <div>
                 <div className="mobile-header" style={{ position: 'static', padding: '16px 0', borderBottom: 'none', background: 'none' }}>
                   <button className="back-btn" onClick={() => { setSelectedCompanyId(null); setSearchQuery(''); setPreviewPage(1); window.scrollTo(0, 0); }} style={{ marginLeft: '-12px' }}>
-                    ← Back
+                    ←
                   </button>
                   <span className="mobile-header-title">{selectedCompany?.companyName} Stock</span>
                 </div>

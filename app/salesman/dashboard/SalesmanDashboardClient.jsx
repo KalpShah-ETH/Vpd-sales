@@ -29,6 +29,11 @@ export default function SalesmanDashboardClient({ salesman }) {
   const [ordersTotalPages, setOrdersTotalPages] = useState(1);
   const [submittingId, setSubmittingId] = useState(null);
 
+  // Change Password State
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '' });
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showPasswords, setShowPasswords] = useState(false);
 
 
   // Custom Confirmation Modal State
@@ -200,6 +205,35 @@ export default function SalesmanDashboardClient({ salesman }) {
   };
 
 
+
+  // Change Password
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    if (passwordForm.newPassword.length < 6) {
+      return showErrorToast('New password must be at least 6 characters');
+    }
+    setPasswordLoading(true);
+    try {
+      const res = await fetch('/api/salesman/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(passwordForm)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Password changed successfully!');
+        setShowPasswordModal(false);
+        setPasswordForm({ currentPassword: '', newPassword: '' });
+      } else {
+        showErrorToast(data.error || 'Failed to change password');
+      }
+    } catch (err) {
+      console.error(err);
+      showErrorToast('Error connecting to server');
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
 
   // Logout
   const handleLogout = async () => {
@@ -545,6 +579,17 @@ export default function SalesmanDashboardClient({ salesman }) {
               }}
             >
               👥 Retailer Directory
+            </button>
+          </li>
+          <li>
+            <button 
+              className="sidebar-link" 
+              onClick={() => {
+                setShowPasswordModal(true);
+                setIsSidebarOpen(false);
+              }}
+            >
+              🔐 Change Password
             </button>
           </li>
           <li>
@@ -1080,6 +1125,62 @@ export default function SalesmanDashboardClient({ salesman }) {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Change Modal */}
+      {showPasswordModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h2 className="modal-title">Change Password</h2>
+              <button 
+                className="btn btn-secondary" 
+                style={{ padding: '4px 8px' }} 
+                onClick={() => setShowPasswordModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleChangePassword}>
+              <div className="form-group" style={{ position: 'relative' }}>
+                <label className="form-label">Current Password</label>
+                <input 
+                  type={showPasswords ? 'text' : 'password'} 
+                  className="form-input" 
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm(prev => ({ ...prev, currentPassword: e.target.value }))}
+                  required 
+                />
+              </div>
+              <div className="form-group" style={{ position: 'relative' }}>
+                <label className="form-label">New Password</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type={showPasswords ? 'text' : 'password'} 
+                    className="form-input" 
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm(prev => ({ ...prev, newPassword: e.target.value }))}
+                    minLength={6}
+                    required 
+                  />
+                  <button 
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowPasswords(!showPasswords)}
+                    style={{ padding: '0 12px', flexShrink: 0 }}
+                    title={showPasswords ? "Hide Passwords" : "Show Passwords"}
+                  >
+                    {showPasswords ? '👁️‍🗨️' : '👁️'}
+                  </button>
+                </div>
+                <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '4px' }}>Minimum 6 characters</small>
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: '16px' }} disabled={passwordLoading}>
+                {passwordLoading ? 'Updating...' : 'Change Password'}
+              </button>
+            </form>
           </div>
         </div>
       )}

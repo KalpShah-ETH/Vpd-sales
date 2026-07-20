@@ -371,7 +371,7 @@ export default function RetailerBrowseClient({ shopName }) {
                 window.scrollTo(0, 0);
               }}
             >
-              ← Back
+              ←
             </button>
             <span className="mobile-header-title">{company?.companyName}</span>
           </div>
